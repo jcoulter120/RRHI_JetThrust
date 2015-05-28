@@ -44,14 +44,15 @@
 using namespace std;
 
 void read_HiForest_test(Int_t radius = 3, char * algo = (char*)"PF"){
-
+ 
   bool printDebug = false;
 
   //Define file and tree
   TFile * fin = TFile::Open("pp_2013_data_testfile.root");
   TFile * new_File = new TFile("test_pp_jetVariable_plots.root","RECREATE");
   TTree * jet = (TTree*)fin->Get(Form("ak%d%sJetAnalyzer/t",radius,algo));
-   
+
+ 
   //Part 1: Plotting Manually
   // updates from github
   
@@ -131,17 +132,17 @@ void read_HiForest_test(Int_t radius = 3, char * algo = (char*)"PF"){
     for(int jentry = 0; jentry < nref; ++jentry){
 
       hJet_pT->Fill(pt[jentry]);
-      //if(printDebug) cout<<"pt = "<< pt[jentry] << endl;
+      if(printDebug) cout<<"pt = "<< pt[jentry] << endl;
 
       hJet_eta->Fill(eta[jentry]);
-      //if(printDebug) cout<<"eta = "<< eta[jentry] << endl;
+      if(printDebug) cout<<"eta = "<< eta[jentry] << endl;
 
       hJet_phi->Fill(phi[jentry]);
-      //if(printDebug) cout<<"phi = "<< phi[jentry] << endl;
+      if(printDebug) cout<<"phi = "<< phi[jentry] << endl;
 
       hJet_2d->Fill(eta[jentry],pt[jentry]);
-      //if(printDebug) cout<<"pt = "<< pt[jentry] << endl;
-      //if(printDebug) cout<<"eta  = "<< eta[jentry] << endl;
+      if(printDebug) cout<<"pt = "<< pt[jentry] << endl;
+      if(printDebug) cout<<"eta  = "<< eta[jentry] << endl;
 
     }//end jet loop
    
@@ -181,5 +182,60 @@ void read_HiForest_test(Int_t radius = 3, char * algo = (char*)"PF"){
 
   new_File->Write();
   c2->SaveAs("test_pp_jetvariables_with_fors.pdf","RECREATE");
+  /*
+  
+  //Part 3: Friending trees and plotting from a selection
+
+  bool printDebug = true;
+  
+  //Declare branch variables
+  Float_t pt3[1000], phi3[1000], eta3[1000];
+  Int_t nref3;
+
+  //Create a new trees
+  TFile * fin = TFile::Open("pp_2013_data_testfile.root");
+  TTree * hlt = (TTree*)fin->Get("hltanalysis/HltTree");
+  TTree * jet3 = (TTree*)fin->Get(Form("ak%d%sJetAnalyzer/t",radius,algo));
+
+  //Friend the trees
+
+  hlt->AddFriend(jet3);
+  
+  //Set a branch for the new trees
+  hlt->SetBranchAddress("jtpt", &pt3);
+  hlt->SetBranchAddress("jteta", &eta3);
+  hlt->SetBranchAddress("jtphi", &phi3);
+  hlt->SetBranchAddress("nref", &nref3);
+
+  //Create a new histogram
+  TH1F * h_pt3 = new TH1F("hpt3","",1000, 10, 100);
+  TH1F * h_eta3 = new TH1F("hpt3","",1000, 10, 100);
+  TH1F *  h_phi3 = new TH1F("hpt3","",1000, 10, 100);
+  TCanvas * c3 = new TCanvas("c3", "Simple Jet Variables 3", 1200, 1200);
+  c3->cd(1);
+  
+  //Fill the new tree
+
+  Long64_t nentries = hlt->GetEntries(); 
+  
+  if(printDebug) nentries = 10; 
+
+  //loops through events
+  for(Long64_t k =0; k<nentries;k++){
+
+    hlt->GetEvent(k); //loads variables for this event (pt, nref, etc)
+    
+    //loops through the jets inside an event
+    for(Int_t jetNum =0; jetNum < nref3; jetNum++){
+
+      h_pt3->Fill(pt3[jetNum]>50);
+      //h_eta3->Fill(eta3[jetNum]);
+      //h_phi3->Fill(phi3[jetNum]);
+
+    }  
+
+  }//end fill loop
+  h_pt3->Draw(); 
   
 }// end of macro
+/*
