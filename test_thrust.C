@@ -5,7 +5,8 @@
 // Test macro for plotting thrust, an event shape variable.
 //
 // May 25th -> added for loops for events and jets
-// May 26th -> added plot with respect to dN/dT 
+// May 26th -> added plot with respect to dN/dT
+// May 29th -> corrected error in variable reset, identified issue with axes definition
 
 #include <iostream>
 #include <stdio.h>
@@ -106,7 +107,9 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       if(debug) cout<<"axis theta  = " << axis_theta << endl; 
       
       //calculates axis for this particular jet
-      TVector3 nT (TMath::Sin(axis_theta) * TMath::Cos(phi[naxis]), TMath::Sin(phi[naxis]) * TMath::Sin(axis_theta), TMath::Cos(phi[naxis]));
+      //TVector3 nT (TMath::Sin(axis_theta) * TMath::Cos(phi[naxis]), TMath::Sin(phi[naxis]) * TMath::Sin(axis_theta), TMath::Cos(phi[naxis]));
+      TVector3 nT (TMath::Sin(phi[naxis]) * TMath::Cos(axis_theta]), TMath::Sin(axis_theta) * TMath::Sin(phi[naxis]), TMath::Cos(axis_theta));
+
       if(debug) cout<<"Test Axis UNNORM'D = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;	    
       if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
       
