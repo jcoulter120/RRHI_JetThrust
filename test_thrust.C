@@ -43,7 +43,7 @@
 using namespace std;
 void test_thrust(){
 
-  bool debug = false;
+  bool debug = true;
   
   //define trees and file
   TFile * fin = TFile::Open("pp_2013_data_testfile.root");
@@ -60,9 +60,7 @@ void test_thrust(){
   Float_t eta[1000];
   Float_t phi[1000];
   Float_t theta[1000];
-  Float_t thrust[50000]; 
   Int_t nref;
-  Int_t p_tot = 0;
   Float_t dot = 0;
   Double_t mag = 0;
   Double_t axis_theta = 0;
@@ -93,11 +91,15 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
     }
 
     if(!select) continue;
+    if(debug) cout<< " \n ******* New Event ******** " << endl;
+    thrust_max =0; 
     
     //max axis loop
     for(Long64_t naxis = 0; naxis < nref; ++naxis){
+
+      if(debug) cout<< " \n --------- New Test Axis --------- " << endl; 
       
-      thrust_max = 0; 
+      thrust_temp = 0; 
       
       //calculates theta for this jet
       axis_theta = 2*TMath::ATan(exp(-1*eta[naxis]));
@@ -105,6 +107,8 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       
       //calculates axis for this particular jet
       TVector3 nT (TMath::Sin(axis_theta) * TMath::Cos(phi[naxis]), TMath::Sin(phi[naxis]) * TMath::Sin(axis_theta), TMath::Cos(phi[naxis]));
+      if(debug) cout<<"Test Axis UNNORM'D = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;	    
+      if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
       
       //normalize the thrust axis
       nT_mag = TMath::Sqrt(nT(0)*nT(0) + nT(1)*nT(1) + nT(2)*nT(2)); 
@@ -112,41 +116,44 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       nT(1) = nT(1)/nT_mag;
       nT(2) = nT(2)/nT_mag;
       
-      if(debug) cout<<"axis  = " << nT(0) << " " << nT(1) << " " << nT(2) << endl;
-      if(debug) cout<<"axis mag  = " << nT.Mag() << endl;
+      if(debug) cout<<"Test Axis NORM'D  = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;
+      //if(debug) cout<<"Test Axis Mag  = " << nT.Mag() << endl;
 
       //resets for next jet loop
-      p_tot = 0;
       dot = 0;
       mag = 0; 
       
       //jet loop
       for(Long64_t njet = 0; njet < nref; ++njet){
 	
+	if(debug) cout<< " \n --------- New Jet --------- " << endl; 
+
+	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
 	//calculate theta from eta
-	theta[njet] = 2*TMath::ATan(exp(-1*eta[njet]));
+	//	theta[njet] = 2*TMath::ATan(exp(-1*eta[njet]));
 	//cout<<thrust_max<<endl;	
-	thrust_temp = 0;
+	//thrust_temp = 0;
 	
 	//calculate px, py, pz
 	px[njet] = pt[njet]*TMath::Cos(phi[njet]);
-	if(debug) cout<<"px = " << px[njet] << endl; 
+	//if(debug) cout<<"px = " << px[njet] << endl; 
 	py[njet] = pt[njet]*TMath::Sin(phi[njet]);
-	if(debug) cout<<"py = " << py[njet] << endl; 
+	//if(debug) cout<<"py = " << py[njet] << endl; 
 	pz[njet] = pt[njet]*TMath::SinH(eta[njet]);
-	if(debug) cout<<"pz = " << pz[njet] << endl;
+	//if(debug) cout<<"pz = " << pz[njet] << endl;
 	
 	//define momentum three vector
 	TVector3 p3 (px[njet], py[njet], pz[njet]);
+	if(debug) cout<<"\nJet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
 	
 	//sum the total p from the individual p magnitudes
-	mag += p3.Mag();
-	if(debug) cout<<"mag = " << mag << endl;
+	mag += TMath::Abs( p3.Mag());
+	if(debug) cout<<"mag sum = " << mag << endl;
 	
 	//dots the two vectors
-	dot += TMath::Abs(px[njet]*nT(0) + py[njet]*nT(1) + pz[njet]*nT(2));
-	//dot += (px[njet]*nT(0) + py[njet]*nT(1) + pz[njet]*nT(2));	
-	if(debug) cout<<"dot = " << dot << endl;	
+	//dot += TMath::Abs(px[njet]*nT(0) + py[njet]*nT(1) + pz[njet]*nT(2));
+	dot += TMath::Abs(p3.Dot(nT)); 
+	if(debug) cout<<"dot sum = " << dot << endl;	
 	
       }//end jet loop
       
@@ -154,18 +161,17 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       thrust_temp = ((dot)/mag);
 
       //Compare to see if this axis is a new maximum 
-      if(debug) cout<< "temp thrust = " << thrust_temp << endl; 
-      if(debug) cout<< "max thrust = " << thrust_max << endl;
+      if(debug) cout<< "\ntemp thrust = " << thrust_temp << endl; 
       
       if(thrust_temp>thrust_max){
 	thrust_max = thrust_temp;
-	if(debug) cout<< " thrust max "<< thrust_max << endl; 
+	if(debug) cout<< "max thrust = " << thrust_max << endl;
       }
       
     }//end axis loop
     
     h_thrust->Fill(thrust_max);
-    if(debug) cout<< "entry value = " << thrust_max;  
+    if(thrust_max < .5) cout<< " thrust entry & "<< thrust_max << endl; 
     
   }//end of event loop
   
@@ -200,9 +206,6 @@ for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       //cout<<"val = " << val << endl;
       //h_T->SetBinError(i,valErr);
     }
-
-  h_T->GetXaxis()->CenterTitle();
-  h_T->GetYaxis()->CenterTitle();
 
   //Set up second histogram
   c->cd(2)->SetLogy();
