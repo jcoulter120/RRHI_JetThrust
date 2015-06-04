@@ -7,7 +7,10 @@
 // May 25th -> added for loops for events and jets
 // May 26th -> added plot with respect to dN/dT
 // May 29th -> corrected error in variable reset, identified issue with axes definition
-// May 31st -> added thrust min and max plotting
+// May 31st -> added thrust min and max plotting, not yet working
+// June 1st -> fixed dN/dT plotting
+// June 2nd -> added plane class
+// June 3rd -> achieved first results of seemingly appropriate Tmaj and Tmin
 
 #include <iostream>
 #include <stdio.h>
@@ -41,101 +44,140 @@
 #include "TLine.h"
 #include "TVector3.h"
 
-//Can I define a plane class....?
-/*
-TVector3 projection(TVector3 nT, TVector3 jaxis){
+using namespace std;
 
-  TVector3 proj;
-
-  //Use TVector3 to find an orthogonal vector
-  TVector3 v1 = nT.Orthogonal();
-
-  //Find a vector in the same plane that is still ortho to nT
-  TVector3 v2 = nT.Cross(v1); 
-
-  //GS Orthogonalize
-  TVector3 u1 = v1;
-  TVector3 u2 = v2 - ((v2.Dot(u1))/u1.Dot(u1))*u1; 
-
-  //Find the projection of a jet onto this subspace
-  proj = jaxis.Dot(u1)/(u1.Dot(1))*(u1) + (jaxis.Dot(u2)/u2.Dot(u2))*u2; 
+//plane class
+class Plane{
+public:
+  TVector3 v1, v2;
+  Plane(TVector3);
   
-  //return this projection
-  return proj; 
-}
-*/
+  //returns a projection onto the 2D plane 
+  TVector3 Projection(TVector3 jaxis){
+    //Find the projection of a jet onto this subspace
+    Double_t scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));  Double_t scalar2 = (jaxis.Dot(v2)/v2.Dot(v2)); 
+    TVector3 u1 = v1;   TVector3 u2 = v2;
+    u1 = scalar1*u1;  u2 = scalar2*u2;
+    TVector3 proj = u1.operator+=(u2);
+    return proj;
+  }//end of projection
+};
+//plane class constructor
+Plane::Plane(TVector3 nT){
+  
+  //Use TVector3 to find an orthogonal vector and a second vector orthogonal to the first and nT
+  v1 = nT.Orthogonal();  v2 = nT.Cross(v1);
+  
+  //Normalize
+  Double_t mag1 = v1.Mag();       Double_t mag2 = v2.Mag();
+  v1(0) = v1(0)/mag1;    v1(1) = v1(1)/mag1;    v1(2) = v1(2)/mag1;
+  v2(0) = v2(0)/mag2;    v2(1) = v2(1)/mag2;    v2(2) = v2(2)/mag2;
+  //cout<<"v1 = {" << v1(0) << ", " << v1(1) << ", " << v1(2)<< "}" << endl;
+  //cout<<"v2 = {" << v2(0) << ", " << v2(1) << ", " << v2(2)<< "}" << endl;	    
+}//end plane constructor
+
 //creates histograms in terms of Thrust vs. dN/dT
-TH1F* rebin(TH1F * hist, const char * name){
+TH1F* rebin(TH1F * hist, const char * name, Float_t nEvents){
 
   TH1F* h_return = new TH1F(name, "", hist->GetNbinsX(), 0,1);
   Float_t bin = hist->GetBinWidth(1);
-  
+  //hist->Sumw2(); 
+  //loops through all the bins
   for (int i=0;i<=hist->GetNbinsX();++i){
     Float_t val = hist->GetBinContent(i);
+    Float_t valErr = h_return->GetBinError(i);
     val = val/bin;
-    //Float_t valErr = h_return->GetBinError(i);
-      //valErr/=h_return->GetBinWidth(i);
-      for(int p = 0; p < val; p++){
-	h_return->AddBinContent(i);
-	//h_return->SetBinError(i,valErr);
-    }
-  }
+    //val = val/nEvents;
+    valErr/=h_return->GetBinWidth(i);
+    h_return->SetBinError(i,valErr);
+    //increments the bins to a certain value
+    for(int p = 0; p < val; p++){
+      h_return->AddBinContent(i);
+    }//end increment bin loop    
+  }//end bin loop
   return h_return;
-}
+}//end rebin function
 
-using namespace std;
+//Function to normaliza a vector
+TVector3 Norm(TVector3 v){
+  Double_t mag = TMath::Sqrt(v(0)*v(0) + v(1)*v(1) + v(2)*v(2)); 
+  v(0) = v(0)/mag;    v(1) = v(1)/mag;   v(2) = v(2)/mag;
+  return v; 
+}//end normalize
+
+//make a pt spectra plot
+//move eta and other cuts above pt
+//for pt cut add pT 40, 60, 80 
+//event variable histograms
+//if a cut fails just do continue instead of save
+///add a parameter which stores to pt_cut
+//make cuts when you define the jet axis....???
+//count events before and after cuts....???
+//add error
+//normalize by number of events
 
 //plot thrust
-void test_thrust(){
+void test_thrust(Float_t pT_cut){
 
-  bool debug = false;
+  bool debug = false;   bool selectDebug = false; 
   
   //define trees and file
   TFile * fin = TFile::Open("pp_2013_data_testfile.root");
   TFile * save_File = new TFile("test_pp_thrust.root","RECREATE");
   TTree * t = (TTree*)fin->Get("ak3PFJetAnalyzer/t");
   TTree * hiEvt = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
+  TTree * hlt = (TTree*)fin->Get("hltanalysis/HltTree");
   TTree * skim = (TTree*)fin->Get("skimanalysis/HltTree"); 
   TCanvas * c = new TCanvas("c","Thrust Test", 1200, 800);
   
-  c->Divide(2,1);
+  c->Divide(2,2);
   TH1F * h_thrust = new TH1F("thrust", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust min", "", 50,0,1);
   TH1F * h_maj = new TH1F("thrust maj", "", 50,0,1);
+  TH1F * h_pT = new TH1F("pT", "", 100, 0, 120);
+  TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120); 
 
-  Double_t px[1000];
-  Double_t py[1000];
-  Double_t pz[1000];
-  Float_t pt[1000];
-  Float_t eta[1000];
-  Float_t phi[1000];
+  Double_t px[1000];     Float_t pt[1000];    Int_t jt80;   Int_t jt80_pre;
+  Double_t py[1000];     Float_t eta[1000];   Int_t jt40;   Int_t jt60_pre;
+  Double_t pz[1000];     Float_t phi[1000];   Int_t jt60;   Int_t jt40_pre;
   
   Int_t nref;
+  Float_t vz;
+  Int_t halo;
+  Int_t noise;
+  
   Float_t dot = 0;
   Double_t mag = 0;
   Double_t thrust_temp = 0;
   Double_t thrust_max = 0;
-  Double_t nT_mag = 0;
   Double_t dot_maj = 0;
   Double_t dot_min = 0;
   Double_t min_temp = 0;
   Double_t maj_temp = 0;
-  Double_t thrust_maj =0;
-  Double_t thrust_min = 0;
-  Float_t vz;
-  Int_t halo;
-  Int_t noise; 
+  Double_t thrust_maj_max =0;
+  Double_t thrust_min_max = 0;
+  TVector3 max_thrust_axis;
   
   //Set branches of the tree 
   t->SetBranchAddress("jtpt", &pt);
   t->SetBranchAddress("jteta", &eta);
   t->SetBranchAddress("jtphi", &phi);
   t->SetBranchAddress("nref", &nref);
+  
   t->AddFriend(hiEvt);
   t->SetBranchAddress("vz", &vz);
+  
   t->AddFriend(skim);
   t->SetBranchAddress("pPAcollisionEventSelectionPA",&halo);
   t->SetBranchAddress("pHBHENoiseFilter", &noise);
+  
+  t->AddFriend(hlt);
+  t->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jt80);
+  t->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jt60);
+  t->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jt40);
+  t->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
+  t->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
+  t->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
   
   Long64_t nentries = t->GetEntries();
   if(debug) nentries = 1000;
@@ -146,29 +188,39 @@ void test_thrust(){
     t->GetEvent(nentry);
 
     //make selection cuts
-    bool select = true;
-    bool pTSelect = false;
-    bool etaSelect = false;
+    if(selectDebug) cout<< "noise = " << noise << " halo = " << halo << endl; 
+    if((TMath::Abs(vz) > 15)||(noise==0)||(halo==0)) {continue;}
     
     //pT cut
+    /*
     for(int k = 0; k < nref; k++){
-      if(pt[k] >  30){cout<< "selected pT"<<endl; pTSelect = true;}
-      if((TMath::Abs(eta[k])<2)) {cout << "selected eta"<< endl; etaSelect = true; }
+      if(pt[k] >  30){
+	if(selectDebug) cout<< "selected pT"<<endl;
+	pTSelect = true;
+      }
+      if((TMath::Abs(eta[k])<2)) {
+	if(selectDebug) cout << "selected eta"<< endl;
+	etaSelect = true;
+      }
     }
-
-    cout<< "noise = " << noise << " halo = " << halo << endl; 
-    if((TMath::Abs(vz) > 15)||(noise=0)||(halo=0)) {select = false;}
-    
-    if(!select||!pTSelect||!etaSelect) continue;
+    */
     if(debug) cout<< " \n ******* New Event ******** " << endl;
+
+    //reset maximum values
     thrust_max = 0; 
-    
-    //max axis loop
+
+    //Part 1: Runs through all the jets in an event, checking them to see if they are the axis that maximizes thrust
+    //max axis finding loop
     for(Long64_t naxis = 0; naxis < nref; ++naxis){
 
-      if(debug) cout<< " \n --------- New Test Axis --------- " << endl; 
+      h_pT->Fill(pt[naxis]);
+      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) < 2)){ continue;}
+      h_pTcut->Fill(pt[naxis]);
       
-      thrust_temp = 0; 
+      if(debug) cout<< " \n --------- New Test Axis --------- " << endl; 
+
+      //reset values for this particular event
+      thrust_temp = 0;   maj_temp = 0;   min_temp = 0;
       
       px[naxis] = pt[naxis]*TMath::Cos(phi[naxis]);
       py[naxis] = pt[naxis]*TMath::Sin(phi[naxis]);
@@ -176,35 +228,22 @@ void test_thrust(){
       
       //calculates axis for this particular jet
       TVector3 nT (px[naxis], py[naxis], pz[naxis]);
+      nT = Norm(nT);
 
-      //define the plane perpendicular to nT
-      
-      if(debug) cout<<"Test Axis UNNORM'D = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;	    
       if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
       
-      //normalize the thrust axis
-      nT_mag = TMath::Sqrt(nT(0)*nT(0) + nT(1)*nT(1) + nT(2)*nT(2)); 
-      nT(0) = nT(0)/nT_mag;
-      nT(1) = nT(1)/nT_mag;
-      nT(2) = nT(2)/nT_mag;
-
-      TVector3 maj_axis = nT.Orthogonal();
-      TVector3 min_axis = nT.Cross(maj_axis);
-      
-      if(debug) cout<<"Test Axis NORM'D  = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;
-      
       //resets for next jet loop
-      dot = 0;
-      dot_maj = 0;
-      dot_min = 0;
-      mag = 0; 
-      
+      dot = 0;   mag = 0;
+
+      //Part 2: Loops through all the jets to find the thrust value for the chosen axis 
       //jet loop
       for(Long64_t njet = 0; njet < nref; ++njet){
+
+	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) < 2)){ continue;}
 	
 	if(debug) cout<< " \n --------- New Jet --------- " << endl; 
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
-
+	
 	//calculate px, py, pz
 	px[njet] = pt[njet]*TMath::Cos(phi[njet]);
 	py[njet] = pt[njet]*TMath::Sin(phi[njet]); 
@@ -212,16 +251,12 @@ void test_thrust(){
 	
 	//define momentum three vector
 	TVector3 p3 (px[njet], py[njet], pz[njet]);
-	if(debug) cout<<"\nJet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
-
+	TVector3 p3Norm = Norm(p3);
+	
+	if(debug) cout<<"Jet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
+	
 	//dots the two vectors for Thrust, Tmin and Tmaj
 	dot += TMath::Abs(p3.Dot(nT)); 
-	if(debug) cout<<"dot sum = " << dot << endl;
-
-	dot_maj += TMath::Abs(p3.Dot(maj_axis)); 
-	if(debug) cout<<"dot sum = " << dot << endl;
-
-	dot_min += TMath::Abs(p3.Dot(min_axis)); 
 	if(debug) cout<<"dot sum = " << dot << endl;
 	
 	//sum the total p from the individual p magnitudes
@@ -232,28 +267,104 @@ void test_thrust(){
       
       //calculate the thrust
       thrust_temp = ((dot)/mag);
-      maj_temp = dot_maj/mag;
-      min_temp = dot_min/mag;
 
       //Compare to see if this axis is a new maximum 
       if(debug) cout<< "\ntemp thrust = " << thrust_temp << endl; 
       
       if(thrust_temp>thrust_max){
 	thrust_max = thrust_temp;
-	thrust_maj = maj_temp;
-	thrust_min = min_temp; 
-	if(debug) cout<< "max thrust = " << thrust_max << endl;
-      }
+	max_thrust_axis = nT; 
+	}
+      
+      if(debug) cout<< "max thrust = " << thrust_max << endl;
       
     }//end axis loop
+
+    //Part 3: Begin code to select the Thrust Major and Minor axes
+    
+    //define the plane perpendicular to this axis in order to calculate Tmaj and Tmin
+    Plane* perp = new Plane(max_thrust_axis);
+
+    //reset maximum values for new axis test
+    thrust_maj_max = 0;   thrust_min_max = 0; 
+    
+    //Thrust maj axis loop
+    for(Long64_t naxis = 0; naxis < nref; ++naxis){
+
+      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) < 2)){ continue;}
+      
+      //define the jet axis for this iteration
+      //calculate px, py, pz
+      px[naxis] = pt[naxis]*TMath::Cos(phi[naxis]);
+      py[naxis] = pt[naxis]*TMath::Sin(phi[naxis]); 
+      pz[naxis] = pt[naxis]*TMath::SinH(eta[naxis]);
+      
+      //define momentum three vector
+      TVector3 p3 (px[naxis], py[naxis], pz[naxis]);
+      TVector3 p3Norm = Norm(p3);
+            
+      //define maj_axis and min_axis 
+      TVector3 maj_axis = perp->Projection(p3Norm);
+      TVector3 min_axis = max_thrust_axis.Cross(maj_axis);
+      
+      if(debug) cout<<"Jet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
+      if(debug) cout<<"Maj Axis = {" << maj_axis(0) << ", " << maj_axis(1) << ", " << maj_axis(2)<< "}" << endl;
+      if(debug) cout<<"Min Axis = {" << min_axis(0) << ", " << min_axis(1) << ", " << min_axis(2)<< "}\n" << endl;
+
+      //reset for new axis test
+      dot_maj = 0;   dot_min = 0;   mag = 0;
+      
+      //Part 4: Test the axis defined by the above loop to determine if this axis is the maximum
+      //jet loop
+      for(Long64_t njet = 0; njet < nref; ++njet){
+
+	//make a ptcut
+	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) < 2)){ continue;}
+	
+	if(debug) cout<< " \n --------- New Jet --------- " << endl; 
+	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
+	
+	//calculate px, py, pz
+	px[njet] = pt[njet]*TMath::Cos(phi[njet]);
+	py[njet] = pt[njet]*TMath::Sin(phi[njet]); 
+	pz[njet] = pt[njet]*TMath::SinH(eta[njet]);
+	
+	//define momentum three vector
+	TVector3 p3 (px[njet], py[njet], pz[njet]);
+	TVector3 p3Norm = Norm(p3);
+	
+	if(debug) cout<<"Jet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
+	
+	//dots the two vectors for Tmin and Tmaj
+	dot_maj += TMath::Abs(p3.Dot(maj_axis)); 
+	dot_min += TMath::Abs(p3.Dot(min_axis));
+	if(debug) cout<<"dot maj sum = " << dot_maj << endl;
+	if(debug) cout<<"dot min sum = " << dot_min << endl;
+	
+	//sum the total p from the individual p magnitudes
+	mag += TMath::Abs(p3.Mag());
+	if(debug) cout<<"mag sum = " << mag << endl;
+	
+      }//end jet loop
+
+      //calculate the thrust major and minor for this axis
+      maj_temp = dot_maj/mag;
+      min_temp = dot_min/mag;
+      
+      //test to to see if this particular Tmaj and Tmin are the new maxima
+      if(maj_temp>thrust_maj_max){
+	thrust_maj_max = maj_temp;
+	thrust_min_max = min_temp;
+	if(debug) cout << "thrust major max = "<< thrust_maj_max<< endl; 
+      }   
+    }//end of major/minor axis loop
+
+    //fill all the maximum values before finishing
     h_thrust->Fill(thrust_max);
-    h_min->Fill(thrust_min);
-    h_maj->Fill(thrust_maj);
-    //send the max axis to the other two functions
+    h_min->Fill(thrust_min_max);
+    h_maj->Fill(thrust_maj_max);
     
-    if(thrust_max < .5) cout<< " thrust entry & "<< thrust_max << endl; 
-    
-  }//end of event loop
+}//end of event loop
   
   //Set up histograms
   c->cd(1)->SetLogy();
@@ -265,10 +376,10 @@ void test_thrust(){
   h_thrust->SetLineColor(2);
   h_maj->SetLineColor(3);
   h_min->SetLineColor(4);
-  TLegend*legend = new TLegend(0.15,.75,.3,.8);
+  TLegend*legend = new TLegend(0.2,.75,.4,.85);
   legend->AddEntry(h_thrust, "Thrust", "l");
-  //legend->AddEntry(h_maj, "Thrust Major", "l");
-  //legend->AddEntry(h_min, "Thrust Minor", "l");
+  legend->AddEntry(h_maj, "Thrust Major", "l");
+  legend->AddEntry(h_min, "Thrust Minor", "l");
   
   h_thrust->Print("base");
   cout<<"histogram mean = "<<h_thrust->GetMean()<<endl;
@@ -277,86 +388,56 @@ void test_thrust(){
 
   h_maj->Print("base");
   cout<<"histogram mean = "<<h_maj->GetMean()<<endl;
-  gStyle->SetOptStat(0);
-  //h_maj->Draw("SAME");
+  h_maj->Draw("SAME");
   
   h_min->Print("base");
   cout<<"histogram mean = "<<h_min->GetMean()<<endl;
-  gStyle->SetOptStat(0);
-  //h_min->Draw("SAME");
+  h_min->Draw("SAME");
   legend->Draw("SAME");
-
-  /*
-  c->cd(3)->SetLogy();
-  h_maj->SetTitle("Preliminary Thrust Major vs. log(Count)"); 
-  h_maj->SetXTitle("Thrust");
-  h_maj->SetYTitle("log(Counts)");
-  h_maj->GetXaxis()->CenterTitle();
-  h_maj->GetYaxis()->CenterTitle();
-  
-  
-  c->cd(5)->SetLogy();
-  h_min->SetTitle("Preliminary Thrust Minor vs. log(Count)"); 
-  h_min->SetXTitle("Thrust");
-  h_min->SetYTitle("log(Counts)");
-  h_min->GetXaxis()->CenterTitle();
-  h_min->GetYaxis()->CenterTitle();
-  */
   
   //Create the plot for Thrust vs. dN/dT
   //define histograms
-  TH1F * h_T = rebin(h_thrust, "thrust");
-  TH1F * h_Tmaj = rebin(h_maj, "thrustmaj");
-  TH1F * h_Tmin = rebin(h_min, "thrustmin");
+  TH1F * h_T = rebin(h_thrust, "thrust", nentries);
+  TH1F * h_Tmaj = rebin(h_maj, "thrustmaj", nentries);
+  TH1F * h_Tmin = rebin(h_min, "thrustmin", nentries);
   
   //Set up second round of histograms
   c->cd(2)->SetLogy();
-  TLegend*leg = new TLegend(0.15,.75,.3,.8);
+  TLegend*leg = new TLegend(0.2,.75,.4,.85);
   leg->AddEntry(h_T,"Thrust","p");
-  //leg->AddEntry(h_Tmaj,"Thrust Major","p");
-  //leg->AddEntry(h_Tmin,"Thrust Minor","p");
+  leg->AddEntry(h_Tmaj,"Thrust Major","p");
+  leg->AddEntry(h_Tmin,"Thrust Minor","p");
+  
   h_T->SetTitle("Preliminary Thrust vs. dN/dT"); 
   h_T->SetXTitle("Thrust");
   h_T->SetYTitle("dN/dT");
   h_T->GetXaxis()->CenterTitle();
   h_T->GetYaxis()->CenterTitle();
+  
   h_T->SetMarkerStyle(2);
   h_Tmaj->SetMarkerStyle(5);
   h_Tmin->SetMarkerStyle(3);
   h_T->SetOption("P");
   h_Tmaj->SetOption("P");
   h_Tmin->SetOption("P");
+  
   h_T->Draw();
   leg->Draw("SAME");
-  h_T->Print("base");
-  cout<<"histogram mean = "<<h_T->GetMean()<<endl;
-  //h_Tmaj->Draw("SAME");
-  //h_Tmin->Draw("SAME");
-  
-  /*
-  //c->cd(4)->SetLogy();
-  h_Tmaj->SetTitle("Preliminary Thrust Major vs. dN/dT"); 
-  h_Tmaj->SetXTitle("Thrust");
-  h_Tmaj->SetYTitle("dN/dT");
-  h_Tmaj->GetXaxis()->CenterTitle();
-  h_Tmaj->GetYaxis()->CenterTitle();
-  //h_T->SetMarkerStyle(21);
-  //h_Tmaj->Draw("SAME");
-  
-  // c->cd(6)->SetLogy();
-  h_Tmin->SetTitle("Preliminary Thrust Minor vs. dN/dT"); 
-  h_Tmin->SetXTitle("Thrust");
-  h_Tmin->SetYTitle("dN/dT");
-  h_Tmin->GetXaxis()->CenterTitle();
-  h_Tmin->GetYaxis()->CenterTitle();
-  //h_T->SetMarkerStyle(21);
-  //h_Tmin->Draw("SAME");
-  
-  */
+  h_Tmaj->Draw("SAME p");
+  h_Tmin->Draw("SAME p");
+
+  c->cd(3)->SetLogy(); 
+  TLegend*l = new TLegend(0.2,.75,.4,.85);
+  l->AddEntry(h_pT,"pT uncut","l");
+  l->AddEntry(h_pTcut,"pT cut","l");
+  h_pTcut->Draw();
+  l->Draw("SAME"); 
+  h_pT->Draw("SAME"); 
   
   //check the histograms
   if(debug){
-
+    h_T->Print("base");
+    cout<<"histogram mean = "<<h_T->GetMean()<<endl;
     h_Tmaj->Print("base");
     cout<<"histogram mean = "<<h_Tmaj->GetMean()<<endl;
     h_Tmin->Print("base");
@@ -366,14 +447,14 @@ void test_thrust(){
   save_File->Write();
   c->SaveAs("test_pp_thrust.pdf","RECREATE");
   c->SaveAs("test_pp_thrust.root","RECREATE");
-  
-  
+    
 }//end of plot thrust
 
-
-
-
-
+//To-Do (by Monday) 
+//add error
+//normalize with respect to events
+//add plot for bias check (see notebook)
+//
 
 //Things I might need for updates to this macro: 
       
@@ -381,21 +462,4 @@ void test_thrust(){
       // axis_theta = 2*TMath::ATan(exp(-1*eta[naxis]));
       //if(debug) cout<<"axis theta  = " << axis_theta << endl;
 
-      //h_T->SetBinError(i,valErr);
-      //Float_t valErr = h_thrust->GetBinError(i);
-      //valErr/=h_thrust->GetBinWidth(i);
-      // h_T->SetBinContent(i,val);
-
       //TVector3 nT (TMath::Sin(axis_theta) * TMath::Cos(phi[naxis]), TMath::Sin(phi[naxis]) * TMath::Sin(axis_theta), TMath::Cos(phi[naxis]));
-
-
-//MONDAY TO-DO
-
-//FIX THE LEGENDS
-//PUT THEM IN THE POWERPOINT
-//FIX BIN SIZE
-//MAKE ALL THE SECOND PLOT OUT OF POINTS
-//MAKE A RESERVE SLIDE OUT WITH THE NON-POINT PLOTS
-
-
-
