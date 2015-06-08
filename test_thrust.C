@@ -11,6 +11,7 @@
 // June 1st -> fixed dN/dT plotting
 // June 2nd -> added plane class
 // June 3rd -> achieved first results of seemingly appropriate Tmaj and Tmin
+// June 5th -> added plots of pt and cut pt, for 40, 60, and 80, as well as a plot of jets per event and cut jets per event
 
 #include <iostream>
 #include <stdio.h>
@@ -81,19 +82,15 @@ TH1F* rebin(TH1F * hist, const char * name, Float_t nEvents){
 
   TH1F* h_return = new TH1F(name, "", hist->GetNbinsX(), 0,1);
   Float_t bin = hist->GetBinWidth(1);
-  //hist->Sumw2(); 
+  hist->Sumw2(); 
   //loops through all the bins
-  for (int i=0;i<=hist->GetNbinsX();++i){
+  for (int i=1;i<=hist->GetNbinsX();++i){
     Float_t val = hist->GetBinContent(i);
     Float_t valErr = h_return->GetBinError(i);
     val = val/bin;
-    //val = val/nEvents;
     valErr/=h_return->GetBinWidth(i);
     h_return->SetBinError(i,valErr);
-    //increments the bins to a certain value
-    for(int p = 0; p < val; p++){
-      h_return->AddBinContent(i);
-    }//end increment bin loop    
+    h_return->SetBinContent(i, val); 
   }//end bin loop
   return h_return;
 }//end rebin function
@@ -105,20 +102,14 @@ TVector3 Norm(TVector3 v){
   return v; 
 }//end normalize
 
-//make a pt spectra plot
-//move eta and other cuts above pt
-//for pt cut add pT 40, 60, 80 
+//ASK RAGHAV TOMORROW
 //event variable histograms
-//if a cut fails just do continue instead of save
-///add a parameter which stores to pt_cut
-//make cuts when you define the jet axis....???
-//count events before and after cuts....???
-//add error
-//normalize by number of events
+//add error -> Set option e1 
 
 //plot thrust
 void test_thrust(Float_t pT_cut){
 
+  TH1::SetDefaultSumw2();
   bool debug = false;   bool selectDebug = false; 
   
   //define trees and file
@@ -128,14 +119,23 @@ void test_thrust(Float_t pT_cut){
   TTree * hiEvt = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
   TTree * hlt = (TTree*)fin->Get("hltanalysis/HltTree");
   TTree * skim = (TTree*)fin->Get("skimanalysis/HltTree"); 
-  TCanvas * c = new TCanvas("c","Thrust Test", 1200, 800);
+  TCanvas * c = new TCanvas("c","Thrust Test", 1200, 1200);
+  TCanvas * c2 = new TCanvas("c2", "Thrust Test 2", 1200, 1200); 
   
   c->Divide(2,2);
+  c2->Divide(2,2); 
   TH1F * h_thrust = new TH1F("thrust", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust min", "", 50,0,1);
   TH1F * h_maj = new TH1F("thrust maj", "", 50,0,1);
   TH1F * h_pT = new TH1F("pT", "", 100, 0, 120);
-  TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120); 
+  TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120);
+  TH1F * h_40 = new TH1F("thrust 40", "", 50,0,1);
+  TH1F * h_60 = new TH1F("thrust 60", "", 50,0,1);
+  TH1F * h_80 = new TH1F("thrust 80", "", 50,0,1);
+  TH1F * h_nref = new TH1F("events per nref", "", 12, 0, 12);
+  TH1F * h_jetCount = new TH1F("events per jetCount", "", 12, 0, 12);
+  TH1F * h_eta = new TH1F("eta of thrust axes", "", 60, -2, 2);
+  TH1F * h_phi = new TH1F("phi of thrust axes", "", 60, -3.15, 3.15); 
 
   Double_t px[1000];     Float_t pt[1000];    Int_t jt80;   Int_t jt80_pre;
   Double_t py[1000];     Float_t eta[1000];   Int_t jt40;   Int_t jt60_pre;
@@ -145,7 +145,7 @@ void test_thrust(Float_t pT_cut){
   Float_t vz;
   Int_t halo;
   Int_t noise;
-  
+
   Float_t dot = 0;
   Double_t mag = 0;
   Double_t thrust_temp = 0;
@@ -157,6 +157,11 @@ void test_thrust(Float_t pT_cut){
   Double_t thrust_maj_max =0;
   Double_t thrust_min_max = 0;
   TVector3 max_thrust_axis;
+  Float_t max_eta = 0;   Float_t temp_eta = 0;  
+  Float_t max_phi = 0;   Float_t temp_phi = 0;  
+  Int_t jetCount = 0; //in order to sum up the number of jets per event
+  bool pTSelect = false;
+  bool etaSelect = false; 
   
   //Set branches of the tree 
   t->SetBranchAddress("jtpt", &pt);
@@ -178,32 +183,34 @@ void test_thrust(Float_t pT_cut){
   t->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
   t->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
   t->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
-  
+
+  //plot something along the lines of:if it passes this cut, what does the thrust distribution look like
+  //I believe I also need to throw out events that do not contain a jet of more than the parameter entry pT,
+  //because the way my code is structured, if all the jets are less than 30, Thrust ends up being zero, and since C++
+  //does not have a way to continue the outermost event loop, these zeros end up being filled to the histogram. 
+
   Long64_t nentries = t->GetEntries();
-  if(debug) nentries = 1000;
+  if(debug) nentries = 100;
   
   //event loop
   for(Long64_t nentry = 0; nentry<nentries; ++nentry){
     
-    t->GetEvent(nentry);
+    t->GetEntry(nentry);
+    jetCount = 0;
+    bool select = false;
 
     //make selection cuts
     if(selectDebug) cout<< "noise = " << noise << " halo = " << halo << endl; 
     if((TMath::Abs(vz) > 15)||(noise==0)||(halo==0)) {continue;}
     
-    //pT cut
-    /*
+    //intial pT cut
     for(int k = 0; k < nref; k++){
       if(pt[k] >  30){
-	if(selectDebug) cout<< "selected pT"<<endl;
-	pTSelect = true;
-      }
-      if((TMath::Abs(eta[k])<2)) {
-	if(selectDebug) cout << "selected eta"<< endl;
-	etaSelect = true;
+	if((TMath::Abs(eta[k])<2)) select = true; 
       }
     }
-    */
+      //if(!etaSelect||!pTSelect) continue; 
+    if(!select) continue;
     if(debug) cout<< " \n ******* New Event ******** " << endl;
 
     //reset maximum values
@@ -213,11 +220,17 @@ void test_thrust(Float_t pT_cut){
     //max axis finding loop
     for(Long64_t naxis = 0; naxis < nref; ++naxis){
 
+      //Cut checks
+      if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
       h_pT->Fill(pt[naxis]);
-      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) < 2)){ continue;}
+      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)) {
+	continue;
+      }
       h_pTcut->Fill(pt[naxis]);
       
-      if(debug) cout<< " \n --------- New Test Axis --------- " << endl; 
+      jetCount++; 
+      
+      if(debug) cout<< " \n --------- New Test Axis (Thrust)--------- " << endl; 
 
       //reset values for this particular event
       thrust_temp = 0;   maj_temp = 0;   min_temp = 0;
@@ -231,6 +244,7 @@ void test_thrust(Float_t pT_cut){
       nT = Norm(nT);
 
       if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
+      temp_phi = phi[naxis];   temp_eta = eta[naxis]; 
       
       //resets for next jet loop
       dot = 0;   mag = 0;
@@ -239,9 +253,9 @@ void test_thrust(Float_t pT_cut){
       //jet loop
       for(Long64_t njet = 0; njet < nref; ++njet){
 
-	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) < 2)){ continue;}
+	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)){ continue;}
 	
-	if(debug) cout<< " \n --------- New Jet --------- " << endl; 
+	if(debug) cout<< " \n --------- New Jet (Thrust)--------- " << endl; 
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
 	
 	//calculate px, py, pz
@@ -273,7 +287,9 @@ void test_thrust(Float_t pT_cut){
       
       if(thrust_temp>thrust_max){
 	thrust_max = thrust_temp;
-	max_thrust_axis = nT; 
+	max_thrust_axis = nT;
+	max_eta = temp_eta;
+	max_phi = temp_phi; 
 	}
       
       if(debug) cout<< "max thrust = " << thrust_max << endl;
@@ -281,7 +297,7 @@ void test_thrust(Float_t pT_cut){
     }//end axis loop
 
     //Part 3: Begin code to select the Thrust Major and Minor axes
-    
+ 
     //define the plane perpendicular to this axis in order to calculate Tmaj and Tmin
     Plane* perp = new Plane(max_thrust_axis);
 
@@ -291,7 +307,8 @@ void test_thrust(Float_t pT_cut){
     //Thrust maj axis loop
     for(Long64_t naxis = 0; naxis < nref; ++naxis){
 
-      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) < 2)){ continue;}
+      if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)){ continue;}
+      if(debug) cout<< " \n --------- New Test Axis (Min/Maj)--------- " << endl; 
       
       //define the jet axis for this iteration
       //calculate px, py, pz
@@ -319,9 +336,9 @@ void test_thrust(Float_t pT_cut){
       for(Long64_t njet = 0; njet < nref; ++njet){
 
 	//make a ptcut
-	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) < 2)){ continue;}
+	if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)){ continue;}
 	
-	if(debug) cout<< " \n --------- New Jet --------- " << endl; 
+	if(debug) cout<< " \n --------- New Jet (Maj/Min)--------- " << endl; 
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
 	
 	//calculate px, py, pz
@@ -353,16 +370,24 @@ void test_thrust(Float_t pT_cut){
       
       //test to to see if this particular Tmaj and Tmin are the new maxima
       if(maj_temp>thrust_maj_max){
-	thrust_maj_max = maj_temp;
-	thrust_min_max = min_temp;
+	thrust_maj_max = maj_temp;   //max_phi = temp_phi;
+	thrust_min_max = min_temp;   //max_eta = temp_eta; 
 	if(debug) cout << "thrust major max = "<< thrust_maj_max<< endl; 
       }   
     }//end of major/minor axis loop
 
     //fill all the maximum values before finishing
     h_thrust->Fill(thrust_max);
+    h_eta->Fill(max_eta);
+    h_phi->Fill(max_phi);
+    if((debug)&&(thrust_max> 1 || thrust_max < .5)) cout << "FLAG-> Thrust = " << thrust_max << endl; 
     h_min->Fill(thrust_min_max);
     h_maj->Fill(thrust_maj_max);
+    h_nref->Fill(nref);
+    h_jetCount->Fill(jetCount); 
+    if(jt80)	h_80 -> Fill(thrust_max,jt80_pre);
+    if(jt60)	h_60 -> Fill(thrust_max,jt60_pre);
+    if(jt40)	h_40 -> Fill(thrust_max,jt40_pre);
     
 }//end of event loop
   
@@ -376,7 +401,7 @@ void test_thrust(Float_t pT_cut){
   h_thrust->SetLineColor(2);
   h_maj->SetLineColor(3);
   h_min->SetLineColor(4);
-  TLegend*legend = new TLegend(0.2,.75,.4,.85);
+  TLegend*legend = new TLegend(0.2,.70,.4,.85);
   legend->AddEntry(h_thrust, "Thrust", "l");
   legend->AddEntry(h_maj, "Thrust Major", "l");
   legend->AddEntry(h_min, "Thrust Minor", "l");
@@ -400,40 +425,94 @@ void test_thrust(Float_t pT_cut){
   TH1F * h_T = rebin(h_thrust, "thrust", nentries);
   TH1F * h_Tmaj = rebin(h_maj, "thrustmaj", nentries);
   TH1F * h_Tmin = rebin(h_min, "thrustmin", nentries);
+  h_T->Scale(1./nentries);
+  h_Tmaj->Scale(1./nentries);
+  h_Tmin->Scale(1./nentries); 
   
   //Set up second round of histograms
   c->cd(2)->SetLogy();
-  TLegend*leg = new TLegend(0.2,.75,.4,.85);
+  TLegend*leg = new TLegend(0.2,.7,.4,.85);
   leg->AddEntry(h_T,"Thrust","p");
   leg->AddEntry(h_Tmaj,"Thrust Major","p");
   leg->AddEntry(h_Tmin,"Thrust Minor","p");
   
   h_T->SetTitle("Preliminary Thrust vs. dN/dT"); 
   h_T->SetXTitle("Thrust");
-  h_T->SetYTitle("dN/dT");
+  h_T->SetYTitle("dN/dT (1/N)");
   h_T->GetXaxis()->CenterTitle();
   h_T->GetYaxis()->CenterTitle();
-  
-  h_T->SetMarkerStyle(2);
-  h_Tmaj->SetMarkerStyle(5);
-  h_Tmin->SetMarkerStyle(3);
-  h_T->SetOption("P");
-  h_Tmaj->SetOption("P");
-  h_Tmin->SetOption("P");
-  
-  h_T->Draw();
-  leg->Draw("SAME");
+  h_T->SetMarkerStyle(2);   h_Tmaj->SetMarkerStyle(5);   h_Tmin->SetMarkerStyle(3);
+  //h_T->SetOption("e");     h_Tmaj->SetOption("e");     h_Tmin->SetOption("e"); 
+  //h_T->Draw(); h_Tmaj->Draw("SAME"); h_Tmin->Draw("SAME");
+  h_T->Draw("P");
   h_Tmaj->Draw("SAME p");
   h_Tmin->Draw("SAME p");
+  gr1->Draw("SAME"); 
+  leg->Draw("SAME");
+
+  //Cut plots, unimportant
+  /*
+  c2->cd(1)->SetLogy(); 
+  TLegend*l = new TLegend(0.7,.65,.8,.85);1\
+  h_pT->SetLineColor(2);      l->AddEntry(h_pT,"pT uncut","l");
+  h_pTcut->SetLineColor(3);   l->AddEntry(h_pTcut,"pT cut","l");
+  h_pT->Draw();
+  h_pTcut->Draw("SAME");
+  l->Draw("SAME");
+  h_pT->SetTitle("Preliminary Thrust vs. dN/dT"); 
+  h_pT->SetXTitle("Thrust");
+  h_pT->SetYTitle("dN/dT");
+  h_pT->GetXaxis()->CenterTitle();
+  h_pT->GetYaxis()->CenterTitle();
+  */
+
+  //eta bias check plot
+  c2->cd(2)->SetLogy(); 
+  h_eta->Draw();
+  h_eta->SetTitle("Eta vs. dN/dT"); 
+  h_eta->SetXTitle("eta");
+  h_eta->SetYTitle("log(counts)");
+  h_eta->GetXaxis()->CenterTitle();
+  h_eta->GetYaxis()->CenterTitle();
+
+  //phi bias check plot
+  c2->cd(3)->SetLogy(); 
+  h_phi->Draw();
+  h_phi->SetTitle("Phi vs. dN/dT"); 
+  h_phi->SetXTitle("phi (radians)");
+  h_phi->SetYTitle("log(counts)");
+  h_phi->GetXaxis()->CenterTitle();
+  h_phi->GetYaxis()->CenterTitle(); 
+
+  c->cd(4)->SetLogy(); 
+  TLegend*p = new TLegend(0.2,.7,.3,.85);
+  h_80->SetLineColor(2);   p->AddEntry(h_80,"jtpt80","l");
+  h_60->SetLineColor(3);   p->AddEntry(h_60,"jtpt60","l");
+  h_40->SetLineColor(4);   p->AddEntry(h_40,"jtpt40","l");
+  h_80->SetTitle("Preliminary Thrust vs. Log(Counts) for jtpt Cuts 40, 60, 80"); 
+  h_80->SetXTitle("Thrust");
+  h_80->SetYTitle("log(Counts)");
+  h_80->GetXaxis()->CenterTitle();
+  h_80->GetYaxis()->CenterTitle();
+  h_80->GetYaxis()->SetRange(0,100000);
+  h_80->Draw();
+  p->Draw("SAME"); 
+  h_60->Draw("SAME"); 
+  h_40->Draw("SAME");
 
   c->cd(3)->SetLogy(); 
-  TLegend*l = new TLegend(0.2,.75,.4,.85);
-  l->AddEntry(h_pT,"pT uncut","l");
-  l->AddEntry(h_pTcut,"pT cut","l");
-  h_pTcut->Draw();
-  l->Draw("SAME"); 
-  h_pT->Draw("SAME"); 
-  
+  TLegend*g = new TLegend(0.55,.75,.85,.85);
+  h_jetCount->SetLineColor(2);   g->AddEntry(h_jetCount,"selected jet count","l");
+  h_nref->SetLineColor(4);       g->AddEntry(h_nref,"nref","l");
+  h_nref->SetTitle("Preliminary Thrust vs. Log(Counts) for jtpt Cuts"); 
+  h_nref->SetXTitle("Number of Jets");
+  h_nref->SetYTitle("log(Counts)");
+  h_nref->GetXaxis()->CenterTitle();
+  h_nref->GetYaxis()->CenterTitle();
+  h_nref->Draw();
+  h_jetCount->Draw("SAME");
+  g->Draw("SAME"); 
+
   //check the histograms
   if(debug){
     h_T->Print("base");
@@ -446,15 +525,10 @@ void test_thrust(Float_t pT_cut){
   
   save_File->Write();
   c->SaveAs("test_pp_thrust.pdf","RECREATE");
-  c->SaveAs("test_pp_thrust.root","RECREATE");
+  c2->SaveAs("test_pp_thrust2.pdf","RECREATE");
+  //c->SaveAs("test_pp_thrust.root","RECREATE");
     
 }//end of plot thrust
-
-//To-Do (by Monday) 
-//add error
-//normalize with respect to events
-//add plot for bias check (see notebook)
-//
 
 //Things I might need for updates to this macro: 
       
