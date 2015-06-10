@@ -12,6 +12,7 @@
 // June 2nd -> added plane class
 // June 3rd -> achieved first results of seemingly appropriate Tmaj and Tmin
 // June 5th -> added plots of pt and cut pt, for 40, 60, and 80, as well as a plot of jets per event and cut jets per event
+//June 8th ->attempted to add error bars, added eta and phi bias checks
 
 #include <iostream>
 #include <stdio.h>
@@ -56,9 +57,10 @@ public:
   //returns a projection onto the 2D plane 
   TVector3 Projection(TVector3 jaxis){
     //Find the projection of a jet onto this subspace
-    Double_t scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));  Double_t scalar2 = (jaxis.Dot(v2)/v2.Dot(v2)); 
-    TVector3 u1 = v1;   TVector3 u2 = v2;
-    u1 = scalar1*u1;  u2 = scalar2*u2;
+    Double_t scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));
+    Double_t scalar2 = (jaxis.Dot(v2)/v2.Dot(v2)); 
+    TVector3 u1 = v1;   u1 = scalar1*u1;    
+    TVector3 u2 = v2;   u2 = scalar2*u2;
     TVector3 proj = u1.operator+=(u2);
     return proj;
   }//end of projection
@@ -68,7 +70,7 @@ Plane::Plane(TVector3 nT){
   
   //Use TVector3 to find an orthogonal vector and a second vector orthogonal to the first and nT
   v1 = nT.Orthogonal();  v2 = nT.Cross(v1);
-  
+
   //Normalize
   Double_t mag1 = v1.Mag();       Double_t mag2 = v2.Mag();
   v1(0) = v1(0)/mag1;    v1(1) = v1(1)/mag1;    v1(2) = v1(2)/mag1;
@@ -78,33 +80,29 @@ Plane::Plane(TVector3 nT){
 }//end plane constructor
 
 //creates histograms in terms of Thrust vs. dN/dT
-TH1F* rebin(TH1F * hist, const char * name, Float_t nEvents){
+TH1F* DivideByBinWidth(TH1F * hist, const char * name){
 
   TH1F* h_return = new TH1F(name, "", hist->GetNbinsX(), 0,1);
-  Float_t bin = hist->GetBinWidth(1);
   hist->Sumw2(); 
   //loops through all the bins
   for (int i=1;i<=hist->GetNbinsX();++i){
+    Float_t bin = hist->GetBinWidth(i);
     Float_t val = hist->GetBinContent(i);
     Float_t valErr = h_return->GetBinError(i);
     val = val/bin;
-    valErr/=h_return->GetBinWidth(i);
+    valErr= valErr/bin;
     h_return->SetBinError(i,valErr);
     h_return->SetBinContent(i, val); 
   }//end bin loop
   return h_return;
 }//end rebin function
 
-//Function to normaliza a vector
+//Function to normalize a vector
 TVector3 Norm(TVector3 v){
   Double_t mag = TMath::Sqrt(v(0)*v(0) + v(1)*v(1) + v(2)*v(2)); 
   v(0) = v(0)/mag;    v(1) = v(1)/mag;   v(2) = v(2)/mag;
   return v; 
 }//end normalize
-
-//ASK RAGHAV TOMORROW
-//event variable histograms
-//add error -> Set option e1 
 
 //plot thrust
 void test_thrust(Float_t pT_cut){
@@ -119,23 +117,23 @@ void test_thrust(Float_t pT_cut){
   TTree * hiEvt = (TTree*)fin->Get("hiEvtAnalyzer/HiTree");
   TTree * hlt = (TTree*)fin->Get("hltanalysis/HltTree");
   TTree * skim = (TTree*)fin->Get("skimanalysis/HltTree"); 
-  TCanvas * c = new TCanvas("c","Thrust Test", 1200, 1200);
-  TCanvas * c2 = new TCanvas("c2", "Thrust Test 2", 1200, 1200); 
+  //TCanvas * c = new TCanvas("c","Thrust Test", 1200, 1200);
+  //TCanvas * c2 = new TCanvas("c2", "Thrust Test 2", 1200, 1200); 
   
-  c->Divide(2,2);
-  c2->Divide(2,2); 
-  TH1F * h_thrust = new TH1F("thrust", "", 50,0,1);
-  TH1F * h_min = new TH1F("thrust min", "", 50,0,1);
-  TH1F * h_maj = new TH1F("thrust maj", "", 50,0,1);
+  //c->Divide(2,2);
+  //c2->Divide(2,2); 
+  TH1F * h_thrust = new TH1F("thrust_unscaled", "", 50,0,1);
+  TH1F * h_min = new TH1F("thrust_min", "", 50,0,1);
+  TH1F * h_maj = new TH1F("thrust_maj", "", 50,0,1);
   TH1F * h_pT = new TH1F("pT", "", 100, 0, 120);
   TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120);
-  TH1F * h_40 = new TH1F("thrust 40", "", 50,0,1);
-  TH1F * h_60 = new TH1F("thrust 60", "", 50,0,1);
-  TH1F * h_80 = new TH1F("thrust 80", "", 50,0,1);
-  TH1F * h_nref = new TH1F("events per nref", "", 12, 0, 12);
-  TH1F * h_jetCount = new TH1F("events per jetCount", "", 12, 0, 12);
-  TH1F * h_eta = new TH1F("eta of thrust axes", "", 60, -2, 2);
-  TH1F * h_phi = new TH1F("phi of thrust axes", "", 60, -3.15, 3.15); 
+  TH1F * h_40 = new TH1F("thrust_40", "", 50,0,1);
+  TH1F * h_60 = new TH1F("thrust_60", "", 50,0,1);
+  TH1F * h_80 = new TH1F("thrust_80", "", 50,0,1);
+  TH1F * h_nref = new TH1F("nref", "", 12, 0, 12);
+  TH1F * h_jetCount = new TH1F("jetCount", "", 12, 0, 12);
+  TH1F * h_eta = new TH1F("eta", "", 60, -2, 2);
+  TH1F * h_phi = new TH1F("phi", "", 60, -3.15, 3.15); 
 
   Double_t px[1000];     Float_t pt[1000];    Int_t jt80;   Int_t jt80_pre;
   Double_t py[1000];     Float_t eta[1000];   Int_t jt40;   Int_t jt60_pre;
@@ -183,11 +181,6 @@ void test_thrust(Float_t pT_cut){
   t->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
   t->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
   t->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
-
-  //plot something along the lines of:if it passes this cut, what does the thrust distribution look like
-  //I believe I also need to throw out events that do not contain a jet of more than the parameter entry pT,
-  //because the way my code is structured, if all the jets are less than 30, Thrust ends up being zero, and since C++
-  //does not have a way to continue the outermost event loop, these zeros end up being filled to the histogram. 
 
   Long64_t nentries = t->GetEntries();
   if(debug) nentries = 100;
@@ -390,7 +383,8 @@ void test_thrust(Float_t pT_cut){
     if(jt40)	h_40 -> Fill(thrust_max,jt40_pre);
     
 }//end of event loop
-  
+
+  /*
   //Set up histograms
   c->cd(1)->SetLogy();
   h_thrust->SetTitle("Preliminary Thrust vs. log(Count)"); 
@@ -420,16 +414,23 @@ void test_thrust(Float_t pT_cut){
   h_min->Draw("SAME");
   legend->Draw("SAME");
   
+  */
   //Create the plot for Thrust vs. dN/dT
   //define histograms
-  TH1F * h_T = rebin(h_thrust, "thrust", nentries);
-  TH1F * h_Tmaj = rebin(h_maj, "thrustmaj", nentries);
-  TH1F * h_Tmin = rebin(h_min, "thrustmin", nentries);
+  TH1F * h_T = DivideByBinWidth(h_thrust, "thrust_scaled");
+  TH1F * h_Tmaj = DivideByBinWidth(h_maj, "thrust_maj_scaled");
+  TH1F * h_Tmin = DivideByBinWidth(h_min, "thrust_min_scaled");
   h_T->Scale(1./nentries);
   h_Tmaj->Scale(1./nentries);
-  h_Tmin->Scale(1./nentries); 
+  h_Tmin->Scale(1./nentries);
+  //h_min->Draw();
+
+  h_40->Scale(1./nentries);
+  h_60->Scale(1./nentries);
+  h_80->Scale(1./nentries);
   
   //Set up second round of histograms
+  /*
   c->cd(2)->SetLogy();
   TLegend*leg = new TLegend(0.2,.7,.4,.85);
   leg->AddEntry(h_T,"Thrust","p");
@@ -447,13 +448,12 @@ void test_thrust(Float_t pT_cut){
   h_T->Draw("P");
   h_Tmaj->Draw("SAME p");
   h_Tmin->Draw("SAME p");
-  gr1->Draw("SAME"); 
   leg->Draw("SAME");
 
-  //Cut plots, unimportant
   /*
+  //Cut plots, unimportant
   c2->cd(1)->SetLogy(); 
-  TLegend*l = new TLegend(0.7,.65,.8,.85);1\
+  TLegend*l = new TLegend(0.7,.65,.8,.85);
   h_pT->SetLineColor(2);      l->AddEntry(h_pT,"pT uncut","l");
   h_pTcut->SetLineColor(3);   l->AddEntry(h_pTcut,"pT cut","l");
   h_pT->Draw();
@@ -464,7 +464,6 @@ void test_thrust(Float_t pT_cut){
   h_pT->SetYTitle("dN/dT");
   h_pT->GetXaxis()->CenterTitle();
   h_pT->GetYaxis()->CenterTitle();
-  */
 
   //eta bias check plot
   c2->cd(2)->SetLogy(); 
@@ -493,8 +492,11 @@ void test_thrust(Float_t pT_cut){
   h_80->SetXTitle("Thrust");
   h_80->SetYTitle("log(Counts)");
   h_80->GetXaxis()->CenterTitle();
+  h_80->SetAxisRange(0, 1000000, "Y");
   h_80->GetYaxis()->CenterTitle();
-  h_80->GetYaxis()->SetRange(0,100000);
+  h_40->Scale(1./nentries);
+  h_60->Scale(1./nentries);
+  h_80->Scale(1./nentries);
   h_80->Draw();
   p->Draw("SAME"); 
   h_60->Draw("SAME"); 
@@ -510,7 +512,7 @@ void test_thrust(Float_t pT_cut){
   h_nref->GetXaxis()->CenterTitle();
   h_nref->GetYaxis()->CenterTitle();
   h_nref->Draw();
-  h_jetCount->Draw("SAME");
+  h_jetCount->Draw("SAME");			     
   g->Draw("SAME"); 
 
   //check the histograms
@@ -522,10 +524,26 @@ void test_thrust(Float_t pT_cut){
     h_Tmin->Print("base");
     cout<<"histogram mean = "<<h_Tmin->GetMean()<<endl;
   }
-  
+  */  
+
+  //h_thrust->Write();
+  //h_min->Write();
+  //h_maj->Write();
+  h_T->Write();
+  h_Tmaj->Write();
+  h_Tmin->Write();
+  h_pT->Write();
+  h_pTcut->Write();
+  h_40->Write();
+  h_60->Write();
+  h_80->Write();
+  h_nref->Write();
+  h_jetCount->Write();
+  h_eta->Write();
+  h_phi->Write();
   save_File->Write();
-  c->SaveAs("test_pp_thrust.pdf","RECREATE");
-  c2->SaveAs("test_pp_thrust2.pdf","RECREATE");
+  //c->SaveAs("test_pp_thrust.pdf","RECREATE");
+  //c2->SaveAs("test_pp_thrust2.pdf","RECREATE");
   //c->SaveAs("test_pp_thrust.root","RECREATE");
     
 }//end of plot thrust
