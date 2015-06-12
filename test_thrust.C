@@ -13,6 +13,8 @@
 // June 3rd -> achieved first results of seemingly appropriate Tmaj and Tmin
 // June 5th -> added plots of pt and cut pt, for 40, 60, and 80, as well as a plot of jets per event and cut jets per event
 //June 8th ->attempted to add error bars, added eta and phi bias checks
+//June 9th -> converted to analysis macro
+//June 12th ->cleaned up code
 
 #include <iostream>
 #include <stdio.h>
@@ -158,8 +160,6 @@ void test_thrust(Float_t pT_cut){
   Float_t max_eta = 0;   Float_t temp_eta = 0;  
   Float_t max_phi = 0;   Float_t temp_phi = 0;  
   Int_t jetCount = 0; //in order to sum up the number of jets per event
-  bool pTSelect = false;
-  bool etaSelect = false; 
   
   //Set branches of the tree 
   t->SetBranchAddress("jtpt", &pt);
@@ -202,7 +202,6 @@ void test_thrust(Float_t pT_cut){
 	if((TMath::Abs(eta[k])<2)) select = true; 
       }
     }
-      //if(!etaSelect||!pTSelect) continue; 
     if(!select) continue;
     if(debug) cout<< " \n ******* New Event ******** " << endl;
 
@@ -363,8 +362,8 @@ void test_thrust(Float_t pT_cut){
       
       //test to to see if this particular Tmaj and Tmin are the new maxima
       if(maj_temp>thrust_maj_max){
-	thrust_maj_max = maj_temp;   //max_phi = temp_phi;
-	thrust_min_max = min_temp;   //max_eta = temp_eta; 
+	thrust_maj_max = maj_temp;  
+	thrust_min_max = min_temp; 
 	if(debug) cout << "thrust major max = "<< thrust_maj_max<< endl; 
       }   
     }//end of major/minor axis loop
@@ -384,37 +383,6 @@ void test_thrust(Float_t pT_cut){
     
 }//end of event loop
 
-  /*
-  //Set up histograms
-  c->cd(1)->SetLogy();
-  h_thrust->SetTitle("Preliminary Thrust vs. log(Count)"); 
-  h_thrust->SetXTitle("Thrust");
-  h_thrust->SetYTitle("log(Counts)");
-  h_thrust->GetXaxis()->CenterTitle();
-  h_thrust->GetYaxis()->CenterTitle();
-  h_thrust->SetLineColor(2);
-  h_maj->SetLineColor(3);
-  h_min->SetLineColor(4);
-  TLegend*legend = new TLegend(0.2,.70,.4,.85);
-  legend->AddEntry(h_thrust, "Thrust", "l");
-  legend->AddEntry(h_maj, "Thrust Major", "l");
-  legend->AddEntry(h_min, "Thrust Minor", "l");
-  
-  h_thrust->Print("base");
-  cout<<"histogram mean = "<<h_thrust->GetMean()<<endl;
-  gStyle->SetOptStat(0);
-  h_thrust->Draw();
-
-  h_maj->Print("base");
-  cout<<"histogram mean = "<<h_maj->GetMean()<<endl;
-  h_maj->Draw("SAME");
-  
-  h_min->Print("base");
-  cout<<"histogram mean = "<<h_min->GetMean()<<endl;
-  h_min->Draw("SAME");
-  legend->Draw("SAME");
-  
-  */
   //Create the plot for Thrust vs. dN/dT
   //define histograms
   TH1F * h_T = DivideByBinWidth(h_thrust, "thrust_scaled");
@@ -423,112 +391,12 @@ void test_thrust(Float_t pT_cut){
   h_T->Scale(1./nentries);
   h_Tmaj->Scale(1./nentries);
   h_Tmin->Scale(1./nentries);
-  //h_min->Draw();
 
   h_40->Scale(1./nentries);
   h_60->Scale(1./nentries);
   h_80->Scale(1./nentries);
   
-  //Set up second round of histograms
-  /*
-  c->cd(2)->SetLogy();
-  TLegend*leg = new TLegend(0.2,.7,.4,.85);
-  leg->AddEntry(h_T,"Thrust","p");
-  leg->AddEntry(h_Tmaj,"Thrust Major","p");
-  leg->AddEntry(h_Tmin,"Thrust Minor","p");
-  
-  h_T->SetTitle("Preliminary Thrust vs. dN/dT"); 
-  h_T->SetXTitle("Thrust");
-  h_T->SetYTitle("dN/dT (1/N)");
-  h_T->GetXaxis()->CenterTitle();
-  h_T->GetYaxis()->CenterTitle();
-  h_T->SetMarkerStyle(2);   h_Tmaj->SetMarkerStyle(5);   h_Tmin->SetMarkerStyle(3);
-  //h_T->SetOption("e");     h_Tmaj->SetOption("e");     h_Tmin->SetOption("e"); 
-  //h_T->Draw(); h_Tmaj->Draw("SAME"); h_Tmin->Draw("SAME");
-  h_T->Draw("P");
-  h_Tmaj->Draw("SAME p");
-  h_Tmin->Draw("SAME p");
-  leg->Draw("SAME");
 
-  /*
-  //Cut plots, unimportant
-  c2->cd(1)->SetLogy(); 
-  TLegend*l = new TLegend(0.7,.65,.8,.85);
-  h_pT->SetLineColor(2);      l->AddEntry(h_pT,"pT uncut","l");
-  h_pTcut->SetLineColor(3);   l->AddEntry(h_pTcut,"pT cut","l");
-  h_pT->Draw();
-  h_pTcut->Draw("SAME");
-  l->Draw("SAME");
-  h_pT->SetTitle("Preliminary Thrust vs. dN/dT"); 
-  h_pT->SetXTitle("Thrust");
-  h_pT->SetYTitle("dN/dT");
-  h_pT->GetXaxis()->CenterTitle();
-  h_pT->GetYaxis()->CenterTitle();
-
-  //eta bias check plot
-  c2->cd(2)->SetLogy(); 
-  h_eta->Draw();
-  h_eta->SetTitle("Eta vs. dN/dT"); 
-  h_eta->SetXTitle("eta");
-  h_eta->SetYTitle("log(counts)");
-  h_eta->GetXaxis()->CenterTitle();
-  h_eta->GetYaxis()->CenterTitle();
-
-  //phi bias check plot
-  c2->cd(3)->SetLogy(); 
-  h_phi->Draw();
-  h_phi->SetTitle("Phi vs. dN/dT"); 
-  h_phi->SetXTitle("phi (radians)");
-  h_phi->SetYTitle("log(counts)");
-  h_phi->GetXaxis()->CenterTitle();
-  h_phi->GetYaxis()->CenterTitle(); 
-
-  c->cd(4)->SetLogy(); 
-  TLegend*p = new TLegend(0.2,.7,.3,.85);
-  h_80->SetLineColor(2);   p->AddEntry(h_80,"jtpt80","l");
-  h_60->SetLineColor(3);   p->AddEntry(h_60,"jtpt60","l");
-  h_40->SetLineColor(4);   p->AddEntry(h_40,"jtpt40","l");
-  h_80->SetTitle("Preliminary Thrust vs. Log(Counts) for jtpt Cuts 40, 60, 80"); 
-  h_80->SetXTitle("Thrust");
-  h_80->SetYTitle("log(Counts)");
-  h_80->GetXaxis()->CenterTitle();
-  h_80->SetAxisRange(0, 1000000, "Y");
-  h_80->GetYaxis()->CenterTitle();
-  h_40->Scale(1./nentries);
-  h_60->Scale(1./nentries);
-  h_80->Scale(1./nentries);
-  h_80->Draw();
-  p->Draw("SAME"); 
-  h_60->Draw("SAME"); 
-  h_40->Draw("SAME");
-
-  c->cd(3)->SetLogy(); 
-  TLegend*g = new TLegend(0.55,.75,.85,.85);
-  h_jetCount->SetLineColor(2);   g->AddEntry(h_jetCount,"selected jet count","l");
-  h_nref->SetLineColor(4);       g->AddEntry(h_nref,"nref","l");
-  h_nref->SetTitle("Preliminary Thrust vs. Log(Counts) for jtpt Cuts"); 
-  h_nref->SetXTitle("Number of Jets");
-  h_nref->SetYTitle("log(Counts)");
-  h_nref->GetXaxis()->CenterTitle();
-  h_nref->GetYaxis()->CenterTitle();
-  h_nref->Draw();
-  h_jetCount->Draw("SAME");			     
-  g->Draw("SAME"); 
-
-  //check the histograms
-  if(debug){
-    h_T->Print("base");
-    cout<<"histogram mean = "<<h_T->GetMean()<<endl;
-    h_Tmaj->Print("base");
-    cout<<"histogram mean = "<<h_Tmaj->GetMean()<<endl;
-    h_Tmin->Print("base");
-    cout<<"histogram mean = "<<h_Tmin->GetMean()<<endl;
-  }
-  */  
-
-  //h_thrust->Write();
-  //h_min->Write();
-  //h_maj->Write();
   h_T->Write();
   h_Tmaj->Write();
   h_Tmin->Write();
@@ -542,16 +410,5 @@ void test_thrust(Float_t pT_cut){
   h_eta->Write();
   h_phi->Write();
   save_File->Write();
-  //c->SaveAs("test_pp_thrust.pdf","RECREATE");
-  //c2->SaveAs("test_pp_thrust2.pdf","RECREATE");
-  //c->SaveAs("test_pp_thrust.root","RECREATE");
     
 }//end of plot thrust
-
-//Things I might need for updates to this macro: 
-      
-      //calculates theta for this jet
-      // axis_theta = 2*TMath::ATan(exp(-1*eta[naxis]));
-      //if(debug) cout<<"axis theta  = " << axis_theta << endl;
-
-      //TVector3 nT (TMath::Sin(axis_theta) * TMath::Cos(phi[naxis]), TMath::Sin(phi[naxis]) * TMath::Sin(axis_theta), TMath::Cos(phi[naxis]));
