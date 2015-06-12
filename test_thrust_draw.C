@@ -48,7 +48,6 @@ void test_thrust_draw(){
   
   TH1::SetDefaultSumw2();
   gStyle->SetOptStat(0);
-  bool debug = true;
   
   //define trees and file
   TFile * fin = TFile::Open("test_pp_thrust.root");
@@ -66,19 +65,7 @@ void test_thrust_draw(){
   TCanvas * c = new TCanvas("c","Thrust Test", 1200, 1200);
   c->Divide(2,3);
 
-  // Int_t count = 0;
-
-  // istringstream iss(hist);
-  //string sub;
-  //Int_t divide = 2;
-  
-  /*while(getline(iss, sub, ' ')) { //parses all the strings 
-  iss >> sub;
-  count ++;
-  c->cd(1);
-  */
-  //if(sub=="thrust"){ //plot with scaling and marker styles
-
+  //plot with scaling and marker styles
   c->cd(1)->SetLogy();
   h_T->SetTitle("Preliminary Thrust vs. log(Count)"); 
   h_T->SetXTitle("Thrust");
@@ -94,17 +81,17 @@ void test_thrust_draw(){
   h_Tmin->Draw("p&same");
   h_Tmaj->Draw("p&same");
   legend->Draw("same");
-  //}
-  //else if(sub=="eta"){//eta bias check plot
+  
+  //eta bias check plot
   c->cd(2);
   h_eta->SetTitle("Eta vs. dN/dT"); 
   h_eta->SetXTitle("Eta");
   h_eta->SetYTitle("Counts)");
   h_eta->GetXaxis()->CenterTitle();
   h_eta->GetYaxis()->CenterTitle();
-  h_eta->Draw();
-  // }  
-  // else if(sub=="phi"){//phi bias check plot
+  h_eta->Draw(); 
+
+  //phi bias check plot
   c->cd(3);
   h_phi->SetTitle("Phi vs. dN/dT"); 
   h_phi->SetXTitle("Phi (radians)");
@@ -112,8 +99,8 @@ void test_thrust_draw(){
   h_phi->GetXaxis()->CenterTitle();
   h_phi->GetYaxis()->CenterTitle();
   h_phi->Draw();
-  // }
-  //else if(sub=="jetCounts"){//counts of jets
+  
+  //counts of jets
   c->cd(4)->SetLogy();
   TLegend*g = new TLegend(0.55,.75,.85,.85);
   h_jetCount->SetLineColor(2);   g->AddEntry(h_jetCount,"selected jet count","l");
@@ -125,9 +112,9 @@ void test_thrust_draw(){
   h_nref->GetYaxis()->CenterTitle();
   h_nref->Draw();
   h_jetCount->Draw("SAME");			     
-  g->Draw("SAME"); 
-  // }
-  //else if(sub=="pTcuts"){ // Plots of thrust given Tmaj, Tmin, and T
+  g->Draw("SAME");
+  
+  // Plots of thrust given Tmaj, Tmin, and T
   c->cd(5)->SetLogy();
   TLegend*p = new TLegend(0.2,.7,.3,.85);
   h_80->SetLineColor(2);   p->AddEntry(h_80,"jtpt80","l");
@@ -143,11 +130,8 @@ void test_thrust_draw(){
   p->Draw("SAME"); 
   h_60->Draw("SAME"); 
   h_40->Draw("SAME");
-  // }
-  // else{
-  // cout << "failed to print: " << sub << endl;
-  // }
-  // } //end string parsing
+  c->SaveAs("test_pp_thrust.pdf","RECREATE"); 
+
 }//end of plot thrust
 
 
