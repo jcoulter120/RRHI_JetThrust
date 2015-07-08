@@ -51,9 +51,11 @@ public:
     //Find the projection of a jet onto this subspace
     scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));
     scalar2 = jaxis.Dot(v2)/(v2.Dot(v2)); 
-    u1 = v1;   u1 = scalar1*u1;    
-    u2 = v2;   u2 = scalar2*u2;
-    proj = u1.operator+=(u2);
+    //u1 = v1;   u1 = scalar1*u1;
+    v1 = scalar1*v1;
+    v2 = scalar2*v2; 
+    //u2 = v2;   u2 = scalar2*u2;
+    proj = v1.operator+=(v2);
     return proj;
   }//end of projection
 };
@@ -98,18 +100,23 @@ TVector3 Norm(TVector3 v){
 void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int endfile = 22){
 
   TH1::SetDefaultSumw2();
+  
+  TStopwatch timer;
+  timer.Start();
+  
   bool debug = false;
 
-  //TFile * save_File = new TFile("test_pp_thrust.root","RECREATE");
-
-  Double_t px[10000];     Float_t  pt[10000];    Int_t jt80;   Int_t jt80_pre;
-  Double_t py[10000];     Float_t eta[10000];   Int_t jt40;   Int_t jt60_pre;
-  Double_t pz[10000];     Float_t phi[10000];   Int_t jt60;   Int_t jt40_pre;
+  Double_t px[1000];     Float_t  pt[1000];    Int_t jt80;   Int_t jt80_pre;
+  Double_t py[1000];     Float_t eta[1000];   Int_t jt40;   Int_t jt60_pre;
+  Double_t pz[1000];     Float_t phi[1000];   Int_t jt60;   Int_t jt40_pre;
   
+  //Double_t pthatBins[] = {15,30,50,80,120,170,220,280,370,9999};
+  //Double_t xs[] = {2.034e-01, 1.075E-02, 1.025E-03, 9.865E-05, 1.129E-05, 1.465E-06, 2.837E-07, 5.323e-08, 5.934e-09, 0};
   Int_t nref;
   Float_t vz;
   Int_t isMultiMatch;
   Int_t isGoodEvt;
+  Double_t pThat; 
   //Int_t halo;
   //Int_t noise;
 
@@ -131,20 +138,19 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   //define instream
   string input_file = "pp_MC_ak2.txt"; 
   ifstream count(input_file.c_str(), ifstream::in);
-  Int_t total_fileCount = 0;
-  Int_t filesUsed = 0; //this is the number of files used in the current set of histograms
+  Int_t fileCount = 0;
   string * filename = new string[135];
 
   //count up the total number of files and save their names to an array of filenames for initialization purposes
-
+  
   string line;
   while(getline(count, line)){
-    filename[total_fileCount] = line;
-    if (debug) cout << filename[total_fileCount] << endl; 
-    total_fileCount++;
+    filename[fileCount] = line;
+    if (debug) cout << filename[fileCount] << endl; 
+    fileCount++;
   }
   count.close();
-  
+
   TH1F * h_thrust = new TH1F("thrust_unscaled", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust_min", "", 50,0,1);
   TH1F * h_maj = new TH1F("thrust_maj", "", 50,0,1);
@@ -160,62 +166,65 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 
   TTree * jet;
   TTree * event;
+  TTree * pthat_weight; 
   TFile * file;
-
-  //loop to initialize all the files
-  //ifstream in(input_file.c_str(), ifstream::in);
+  TFile * weights; 
 
   // For every file in file list, process trees
-  //for(int ifile = 0; ifile < 45; ifile++){
-  for(int ifile = 0; ifile < 10; ifile++){
-
-    cout << "made it here" << endl; 
+  for(int ifile = 0; ifile < 45; ifile++){
     
     string s = "root://eosuser.cern.ch://eos/user/j/jcoulter/Data/pp_MC/";
     string str = s.append(filename[ifile]);
-    file = TFile::Open(str.c_str()); 
-  //   //cout << filename[ifile] << endl;
-  //   //cout << str << endl; 
-   
+    string w = Form("weights/weights_pp_%d.root", ifile+1); 
+    file = TFile::Open(str.c_str());
+    weights = TFile::Open(w.c_str());     
+
     if (debug) cout << "\n **** =========================== New File ================================= **** \n ";
     cout << "File Name: " << filename[ifile] << endl; 
-    cout << "File Number: " << ifile << "/" << total_fileCount << endl;
-    if (debug) cout << "actual file name = " << str.c_str() <<endl;
+    cout << "File Number: " << ifile << "/" << fileCount << endl;
+    cout << "Weight File: " << w << endl; 
     
     jet = (TTree*)file->Get(Form("ak%dJetAnalyzer/jetTree", radius));
     event = (TTree*)file->Get(Form("ak%dJetAnalyzer/evtTree", radius));
+    pthat_weight = (TTree*)weights->Get("weights");
     
     //Set branches of the tree
     jet->SetBranchAddress("pfpt", &pt);
     jet->SetBranchAddress("pfeta", &eta);
     jet->SetBranchAddress("pfphi", &phi);
     jet->SetBranchAddress("npf", &nref);
+ 
+    //jet->SetBranchAddress("isMultiMatch", &isMultiMatch);
+
+    event->SetBranchAddress("vz", &vz);
+    event->SetBranchAddress("isGoodEvt", &isGoodEvt);
+    
+    pthat_weight->SetBranchAddress("pthatweight", &pThat); 
 
     jet->AddFriend(event);
-    jet->SetBranchAddress("vz", &vz);
-    jet->SetBranchAddress("isMultiMatch", &isMultiMatch);
-    jet->SetBranchAddress("isGoodEvt", &isGoodEvt);
+    jet->AddFriend(pthat_weight);
   
-    //t->SetBranchAddress("pPAcollisionEventSelectionPA",&halo); 
-    //t->SetBranchAddress("pHBHENoiseFilter", &noise);
-    
+    //jet->SetBranchAddress("hEvents_pCollEvent",&halo); 
+    //jet->SetBranchAddress("hEvents_pHBHENoise", &noise);
+
     jet->SetBranchAddress("jet80",&jt80);   jet->SetBranchAddress("jet80_prescl",&jt80_pre);
     jet->SetBranchAddress("jet60",&jt60);   jet->SetBranchAddress("jet60_prescl",&jt60_pre);
     jet->SetBranchAddress("jet40",&jt40);   jet->SetBranchAddress("jet40_prescl",&jt40_pre);
-
+   
+    jet->GetEntry(1); 
+   
     Long64_t nentries = jet->GetEntries();
-    cout << "Events in File: " << nentries << endl; 
-    if(debug) nentries = 100;
-  
+    if(debug) nentries = 10;
+    cout << "Events in File: " << nentries << endl;
     //event loop
-    for(Long64_t nentry = 0; nentry<10; ++nentry){
+    for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       
       jet->GetEntry(nentry);
       jetCount = 0;
-      bool select = false;
+      bool select = true;
       
       //make selection cuts
-      //if((TMath::Abs(vz) > 15)||(noise==0)||(halo==0)||(!isGoodEvt) {continue;}
+      //if((TMath::Abs(vz) > 15)||(noise==0)||(halo==0)||(!isGoodEvt)) {continue;}
       if((TMath::Abs(vz) > 15)||(!isGoodEvt)) {continue;}
       
       //intial pT cut
@@ -226,20 +235,20 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
       }
       if(!select) continue;
       if(debug) cout<< " \n ******* New Event ******** " << endl;
-      
+     
       //reset maximum values
       thrust_max = 0; 
-      
       //Part 1: Runs through all the jets in an event, checking them to see if they are the axis that maximizes thrust
       //max axis finding loop
       for(Long64_t naxis = 0; naxis < nref; ++naxis){
 
 	//Cut checks
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
-	h_pT->Fill(pt[naxis]);
-	if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)||(isMultiMatch)) {continue;}
-	h_pTcut->Fill(pt[naxis]);
-	
+	h_pT->Fill(pt[naxis], pThat);
+	//if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)||(isMultiMatch)) {continue;}
+	if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)) {continue;}	
+	h_pTcut->Fill(pt[naxis], pThat);
+			
 	jetCount++; 
 	
 	if(debug) cout<< " \n --------- New Test Axis (Thrust)--------- " << endl; 
@@ -250,22 +259,22 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	px[naxis] = pt[naxis]*TMath::Cos(phi[naxis]);
 	py[naxis] = pt[naxis]*TMath::Sin(phi[naxis]);
 	pz[naxis] = pt[naxis]*TMath::SinH(eta[naxis]);
-	
+
 	//calculates axis for this particular jet
 	TVector3 nT (px[naxis], py[naxis], pz[naxis]);
 	nT = Norm(nT);
-	
+
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
 	temp_phi = phi[naxis];   temp_eta = eta[naxis]; 
 	
 	//resets for next jet loop
 	dot = 0;   mag = 0;
-	
+
 	//Part 2: Loops through all the jets to find the thrust value for the chosen axis 
 	//jet loop
 	for(Long64_t njet = 0; njet < nref; ++njet){
 	  
-	  if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)||(isMultiMatch)){continue;}
+	  if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)){continue;}
 	  
 	  if(debug) cout<< " \n --------- New Jet (Thrust)--------- " << endl; 
 	  if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
@@ -305,11 +314,11 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	}
 	
 	if(debug) cout<< "max thrust = " << thrust_max << endl;
-	
+
       }//end axis loop
-      
+ 
       //Part 3: Begin code to select the Thrust Major and Minor axes
-      
+
       //define the plane perpendicular to this axis in order to calculate Tmaj and Tmin
       Plane* perp = new Plane(max_thrust_axis);
       
@@ -319,7 +328,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
       //Thrust maj axis loop
       for(Long64_t naxis = 0; naxis < nref; ++naxis){
 	
-	if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)||(isMultiMatch)){continue;}
+	if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)){continue;}
 	if(debug) cout<< " \n --------- New Test Axis (Min/Maj)--------- " << endl; 
 	
 	//define the jet axis for this iteration
@@ -330,10 +339,10 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	
 	//define momentum three vector
 	TVector3 p3 (px[naxis], py[naxis], pz[naxis]);
-	TVector3 p3Norm = Norm(p3);
+	//TVector3 p3Norm = Norm(p3);
 	
 	//define maj_axis and min_axis 
-	TVector3 maj_axis = perp->Projection(p3Norm);
+	TVector3 maj_axis = perp->Projection(Norm(p3));
 	TVector3 min_axis = max_thrust_axis.Cross(maj_axis);
 	
 	if(debug) cout<<"Jet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
@@ -348,7 +357,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	for(Long64_t njet = 0; njet < nref; ++njet){
 	  
 	  //make a ptcut
-	  if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)||(isMultiMatch)){ continue;}
+	  if((pt[njet] < pT_cut)||(TMath::Abs(eta[njet]) > 2)){ continue;}
 	  
 	  if(debug) cout<< " \n --------- New Jet (Maj/Min)--------- " << endl; 
 	  if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[njet]<<"\n \t eta = "<<eta[njet]<<"\n \t phi = "<<phi[njet]<<endl;
@@ -386,41 +395,42 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	  thrust_min_max = min_temp; 
 	  if(debug) cout << "thrust major max = "<< thrust_maj_max<< endl; 
 	}   
+
       }//end of major/minor axis loop
-      
+
       //fill all the maximum values before finishing, unless there is only one selected jet
       if(jetCount != 1){
 	
-	h_thrust->Fill(thrust_max);
-	h_eta->Fill(max_eta);
-	h_phi->Fill(max_phi);
-	h_min->Fill(thrust_min_max);
-	h_maj->Fill(thrust_maj_max);
-	h_nref->Fill(nref);
-	h_jetCount->Fill(jetCount);
+	h_thrust->Fill(thrust_max, pThat);
+	h_eta->Fill(max_eta, pThat);
+	h_phi->Fill(max_phi, pThat);
+	h_min->Fill(thrust_min_max, pThat);
+	h_maj->Fill(thrust_maj_max, pThat);
+	h_nref->Fill(nref, pThat);
+	h_jetCount->Fill(jetCount, pThat);
 
-	if(jt80)   h_80->Fill(thrust_max,jt80_pre);
-	if(jt60)   h_60->Fill(thrust_max,jt60_pre);
-	if(jt40)   h_40->Fill(thrust_max,jt40_pre);
-      }    
+	if(jt80)   h_80->Fill(thrust_max,jt80_pre*pThat);
+	if(jt60)   h_60->Fill(thrust_max,jt60_pre*pThat);
+	if(jt40)   h_40->Fill(thrust_max,jt40_pre*pThat);
+      } 
+      
     }//end of event loop
-    
+       
     h_thrust->Scale(nentries);
     h_maj->Scale(nentries);
     h_min->Scale(nentries);
     h_80->Scale(nentries);
     h_60->Scale(nentries);
     h_40->Scale(nentries); 
-
+  
     file->Close();
-    filesUsed++;
+    weights->Close();
+     
     cout << "file finished" << endl; 
     
   }//end file loop
-
-  //in.close(); 
-  //Create the plot for Thrust vs. dN/dT
-  //define histograms
+ 
+  //Histogram scaling and writing
   TH1F * h_T = DivideByBinWidth(h_thrust,"thrust_scaled");
   TH1F * h_Tmaj = DivideByBinWidth(h_maj, "thrust_maj_scaled");
   TH1F * h_Tmin = DivideByBinWidth(h_min, "thrust_min_scaled");
@@ -434,7 +444,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   h_40 = DivideByBinWidth(h_40, "thrust_40_new");   h_40->Scale(divEntries);
   h_60 = DivideByBinWidth(h_60, "thrust_60_new");   h_60->Scale(divEntries);
   h_80 = DivideByBinWidth(h_80, "thrust_80_new");   h_80->Scale(divEntries);
-
+  
   TFile * save_File = new TFile("test_pp_thrust.root","RECREATE");
   
   h_T->SetDirectory(save_File);
@@ -448,11 +458,12 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   h_nref->SetDirectory(save_File); 
   h_jetCount->SetDirectory(save_File); 
   h_eta->SetDirectory(save_File); 
-  h_phi->SetDirectory(save_File); 
-  
+  h_phi->SetDirectory(save_File);
+
   h_T->Write();
   h_Tmaj->Write();
   h_Tmin->Write();
+  h_thrust->Write();
   h_pT->Write();
   h_pTcut->Write();
   h_40->Write();
@@ -462,8 +473,14 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   h_jetCount->Write();
   h_eta->Write();
   h_phi->Write();
-  
+
+  h_T->SaveAs("thrust_plot.pdf","RECREATE");
+  save_File->Write(); 
   save_File->Close();
+
+  timer.Stop();
+  cout<<"Macro finished: "<<endl;
+  cout<<"CPU time (min)  = "<<(Float_t)timer.CpuTime()/60<<endl;
+  cout<<"Real time (min) = "<<(Float_t)timer.RealTime()/60<<endl;
   
-  cout<<"Macro End"<<endl;
 }//end of plot thrust
