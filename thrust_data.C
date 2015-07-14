@@ -134,9 +134,11 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   Float_t max_eta = 0;   Float_t temp_eta = 0;  
   Float_t max_phi = 0;   Float_t temp_phi = 0;  
   Int_t jetCount = 0; //in order to sum up the number of jets per event
+  Int_t eventCount = 0;//check to see how many of the events in each file are actually being used
+  Long64_t eventSum = 0; 
 
   //define instream
-  string input_file = "pp_MC_ak2.txt"; 
+  string input_file = "pp_MC_ak2_ordered.txt"; 
   ifstream count(input_file.c_str(), ifstream::in);
   Int_t fileCount = 0;
   string * filename = new string[135];
@@ -171,7 +173,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
   TFile * weights; 
 
   // For every file in file list, process trees
-  for(int ifile = 0; ifile < 45; ifile++){
+  for(int ifile = 0; ifile < 3; ifile++){
     
     string s = "root://eosuser.cern.ch://eos/user/j/jcoulter/Data/pp_MC/";
     string str = s.append(filename[ifile]);
@@ -194,8 +196,6 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
     jet->SetBranchAddress("pfphi", &phi);
     jet->SetBranchAddress("npf", &nref);
  
-    //jet->SetBranchAddress("isMultiMatch", &isMultiMatch);
-
     event->SetBranchAddress("vz", &vz);
     event->SetBranchAddress("isGoodEvt", &isGoodEvt);
     
@@ -210,12 +210,14 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
     jet->SetBranchAddress("jet80",&jt80);   jet->SetBranchAddress("jet80_prescl",&jt80_pre);
     jet->SetBranchAddress("jet60",&jt60);   jet->SetBranchAddress("jet60_prescl",&jt60_pre);
     jet->SetBranchAddress("jet40",&jt40);   jet->SetBranchAddress("jet40_prescl",&jt40_pre);
-   
-    jet->GetEntry(1); 
-   
+      
     Long64_t nentries = jet->GetEntries();
     if(debug) nentries = 10;
+    
     cout << "Events in File: " << nentries << endl;
+    eventSum += nentries; 
+    eventCount = 0; 
+    
     //event loop
     for(Long64_t nentry = 0; nentry<nentries; ++nentry){
       
@@ -224,7 +226,6 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
       bool select = true;
       
       //make selection cuts
-      //if((TMath::Abs(vz) > 15)||(noise==0)||(halo==0)||(!isGoodEvt)) {continue;}
       if((TMath::Abs(vz) > 15)||(!isGoodEvt)) {continue;}
       
       //intial pT cut
@@ -237,6 +238,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
       if(debug) cout<< " \n ******* New Event ******** " << endl;
      
       //reset maximum values
+      eventCount++;
       thrust_max = 0; 
       //Part 1: Runs through all the jets in an event, checking them to see if they are the axis that maximizes thrust
       //max axis finding loop
@@ -245,7 +247,7 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
 	//Cut checks
 	if(debug) cout<< "Jet Variables: "<< "\n \t pT = "<<pt[naxis]<<"\n \t eta = "<<eta[naxis]<<"\n \t phi = "<<phi[naxis]<<endl;
 	h_pT->Fill(pt[naxis], pThat);
-	//if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)||(isMultiMatch)) {continue;}
+
 	if((pt[naxis] < pT_cut)||(TMath::Abs(eta[naxis]) > 2)) {continue;}	
 	h_pTcut->Fill(pt[naxis], pThat);
 			
@@ -415,20 +417,38 @@ void thrust_data(Float_t pT_cut = 15, Int_t radius = 2, int startfile = 21, int 
       } 
       
     }//end of event loop
-       
+    /*
     h_thrust->Scale(nentries);
     h_maj->Scale(nentries);
     h_min->Scale(nentries);
     h_80->Scale(nentries);
     h_60->Scale(nentries);
     h_40->Scale(nentries); 
-  
+
+
+    h_thrust->Scale(eventCount);
+    h_maj->Scale(eventCount);
+    h_min->Scale(eventCount);
+    h_80->Scale(eventCount);
+    h_60->Scale(eventCount);
+    h_40->Scale(eventCount); 
+      */
+    
     file->Close();
     weights->Close();
-     
-    cout << "file finished" << endl; 
+
+    cout << "Events Selected: " << eventCount << endl;
+    cout << "Total Events Handled: " << eventSum << endl; 
+    cout << "File Finished" << endl; 
     
   }//end file loop
+
+  h_thrust->Scale(eventSum);
+  h_maj->Scale(eventSum);
+  h_min->Scale(eventSum);
+  h_80->Scale(eventSum);
+  h_60->Scale(eventSum);
+  h_40->Scale(eventSum); 
  
   //Histogram scaling and writing
   TH1F * h_T = DivideByBinWidth(h_thrust,"thrust_scaled");
