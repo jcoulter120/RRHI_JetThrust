@@ -110,7 +110,7 @@ TVector3 Norm(TVector3 v){
 void test_thrust(Float_t pT_cut){
 
   TH1::SetDefaultSumw2();
-  bool debug = false;   bool selectDebug = false; 
+  bool debug = true;   bool selectDebug = false; 
   
   //define trees and file
   TFile * fin = TFile::Open("pp_2013_data_testfile.root");
@@ -314,7 +314,9 @@ void test_thrust(Float_t pT_cut){
             
       //define maj_axis and min_axis 
       TVector3 maj_axis = perp->Projection(p3Norm);
+      maj_axis = Norm(maj_axis);
       TVector3 min_axis = max_thrust_axis.Cross(maj_axis);
+      min_axis = Norm(min_axis); 
       
       if(debug) cout<<"Jet Axis = {" << p3(0) << ", " << p3(1) << ", " << p3(2)<< "}" << endl;
       if(debug) cout<<"Maj Axis = {" << maj_axis(0) << ", " << maj_axis(1) << ", " << maj_axis(2)<< "}" << endl;
