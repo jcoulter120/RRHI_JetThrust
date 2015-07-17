@@ -5,9 +5,7 @@
 //Macro to compute thrust for a large data set.
 //Modified version of test_thrust.C
 
-
-//Plot pT hat spectra
-//Plot 
+//July 16th -> added fix so that jettree and weight and event trees are on the same event number
 
 #include <iostream>
 #include <stdio.h>
@@ -53,6 +51,8 @@ public:
   //returns a projection onto the 2D plane 
   TVector3 Projection(TVector3 jaxis){
     //Find the projection of a jet onto this subspace
+    //cout<<"v1 = {" << v1(0) << ", " << v1(1) << ", " << v1(2)<< "}" << endl;
+    //cout<<"v2 = {" << v2(0) << ", " << v2(1) << ", " << v2(2)<< "}" << endl;
     Double_t scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));
     Double_t scalar2 = (jaxis.Dot(v2)/v2.Dot(v2)); 
     TVector3 u1 = v1;   u1 = scalar1*u1;    
@@ -84,7 +84,8 @@ Plane::Plane(TVector3 nT){
   //Normalize
   mag1 = v1.Mag();       mag2 = v2.Mag();
   v1(0) = v1(0)/mag1;    v1(1) = v1(1)/mag1;    v1(2) = v1(2)/mag1;
-  v2(0) = v2(0)/mag2;    v2(1) = v2(1)/mag2;    v2(2) = v2(2)/mag2;	    
+  v2(0) = v2(0)/mag2;    v2(1) = v2(1)/mag2;    v2(2) = v2(2)/mag2;
+	
 }//end plane constructor
 
 //creates histograms in terms of Thrust vs. dN/dT
@@ -107,6 +108,8 @@ TH1F* DivideByBinWidth(TH1F * hist, const char * name){
 
 //Function to normalize a vector
 TVector3 Norm(TVector3 v){
+  //check for a zero vector
+  if ( v(0) == 0 && v(1) == 0 && v(2) == 0) return v; 
   Double_t mag = TMath::Sqrt(v(0)*v(0) + v(1)*v(1) + v(2)*v(2)); 
   v(0) = v(0)/mag;    v(1) = v(1)/mag;   v(2) = v(2)/mag;
   return v; 
@@ -127,7 +130,6 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
   Double_t pz[1000];     Float_t phi[1000];   Int_t jt60;   Int_t jt40_pre;
   
   Int_t nref;
-  Float_t vz;
   Int_t isMultiMatch;
   Int_t isGoodEvt;
   Double_t pThat_weight;
@@ -148,7 +150,8 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
   TVector3 max_thrust_axis;
   TVector3 p3Norm;
   Float_t max_eta = 0;   Float_t temp_eta = 0;  
-  Float_t max_phi = 0;   Float_t temp_phi = 0;  
+  Float_t max_phi = 0;   Float_t temp_phi = 0;
+  Int_t jetTreeCount = 0; //a counter to make sure that the weight tree and jet tree are on the same 
   Int_t jetCount = 0; //in order to sum up the number of jets per event
   Int_t eventCount = 0;//check to see how many of the events in each file are actually being used
 
@@ -184,9 +187,19 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
 
   TTree * jet;
   TTree * event;
-  TTree * weight; 
+  TTree * weight;
+  TTree * thrust_tree = new TTree("t_thrust", "Tree of thrust events for further analysis"); 
   TFile * file;
-  TFile * weight_file; 
+  TFile * weight_file;
+
+  /*
+  //set up the tree to be filled
+  thrust_tree->Branch("pthatweight",&pthatweight,"pthatweight/D");
+  thrust_tree->Branch("hiBin",&hiBin,"hiBin/I");
+  thrust_tree->Branch("evt",&evnt,"evt/I");
+  thrust_tree->Branch("lumi",&lumi,"lumi/I");
+  thrust_tree->Branch("vz",&vz,"vz/F");
+  */
 
   // For every file in file list, process trees
   for(int ifile = 0; ifile < 45; ifile++){
@@ -200,48 +213,85 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
     if (debug) cout << "\n **** =========================== New File ================================= **** \n ";
     cout << "File Name: " << filename[ifile] << endl; 
     cout << "File Number: " << ifile << "/" << fileCount << endl;
-    cout << "Weight File: " << w << endl; 
+    cout << "Weight File: " << w << endl;
     
     jet = (TTree*)file->Get(Form("ak%dJetAnalyzer/jetTree", radius));
     event = (TTree*)file->Get(Form("ak%dJetAnalyzer/evtTree", radius));
     weight = (TTree*)weight_file->Get("weights");
-    
+   
     //Set branches of the tree
     jet->SetBranchAddress("pfpt", &pt);
     jet->SetBranchAddress("pfeta", &eta);
     jet->SetBranchAddress("pfphi", &phi);
     jet->SetBranchAddress("npf", &nref);
-    jet->SetBranchAddress("pthat", &pThat); 
+    jet->SetBranchAddress("pthat", &pThat);
+
+    Int_t run_J, lumi_J, evt_J;
+    Float_t vz_J;
+    jet->SetBranchAddress("run_value", &run_J);
+    jet->SetBranchAddress("lumi_value", &lumi_J);
+    jet->SetBranchAddress("evt_value", &evt_J);
+    jet->SetBranchAddress("vz", &vz_J);
 
     //jet->SetBranchAddress("pPAcollisionEventSelectionPA",&halo);
 
     jet->SetBranchAddress("jet80",&jt80);   jet->SetBranchAddress("jet80_prescl",&jt80_pre);
     jet->SetBranchAddress("jet60",&jt60);   jet->SetBranchAddress("jet60_prescl",&jt60_pre);
     jet->SetBranchAddress("jet40",&jt40);   jet->SetBranchAddress("jet40_prescl",&jt40_pre);
- 
-    event->SetBranchAddress("vz", &vz);
+
+    //branches used to check if the events have the same value
+    Int_t run_E, lumi_E, evt_E;
+    Float_t vz_E; 
+    event->SetBranchAddress("run_value", &run_E);
+    event->SetBranchAddress("lumi_value", &lumi_E);
+    event->SetBranchAddress("evt_value", &evt_E);
+    event->SetBranchAddress("vz", &vz_E);
     event->SetBranchAddress("isGoodEvt", &isGoodEvt);
-    
-    weight->SetBranchAddress("pthatweight", &pThat_weight); 
+   
+    weight->SetBranchAddress("pthatweight", &pThat_weight);
 
     jet->AddFriend(event);
     jet->AddFriend(weight);
     
-    Long64_t nentries = jet->GetEntries();
-    if(debug) nentries = 1000;
+    Long64_t nentries = event->GetEntries();
+    //if(debug) nentries = 1000;
+    nentries = 100000; 
     
     cout << "Events in File: " << nentries << endl;
-    eventCount = 0; 
+    eventCount = 0;
+    jetTreeCount = 0;
+    
+    //if(event->GetEntries() != weight->GetEntries()) cout<<"Event tree and weight tree have different entries"<<endl;
+    //if(jet->GetEntries() != weight->GetEntries()) cout<<"Jet tree and weight tree have different entries"<<endl;
+    // if(jet->GetEntries() != event->GetEntries()) cout<<"Jet tree and event tree have different entries"<<endl;
+
+    //cout<<"jet Tree events = "<<jet->GetEntries()<<endl;
+    //cout<<"event Tree events = "<<event->GetEntries()<<endl;
+    //cout<<"weight Tree events = "<<weight->GetEntries()<<endl;
     
     //event loop
     for(Long64_t nentry = 0; nentry<nentries; ++nentry){
-      
-      jet->GetEntry(nentry);
-      jetCount = 0;
+
+      jet->GetEvent(jetTreeCount);
+      event->GetEvent(nentry);
+      jetCount = 0; 
       bool select = false;
+
+      if(nentry%10000 == 0) cout << nentry/nentries << "%" << endl;
       
-      //make selection cuts
-      if((TMath::Abs(vz) > 15)||(!isGoodEvt)) {continue;}
+      //make selection cuts -> if event tree is not a good event, trash it
+      //if((TMath::Abs(vz_E) > 15)||(!isGoodEvt)) {continue;}
+      if(!isGoodEvt) {continue;}
+
+      if (debug) cout << "event: " << "vz: " << vz_E << " lumi: " << lumi_E << " event: " << evt_E << endl;
+      if (debug) cout << "jet: " << "vz: " << vz_J << " lumi: " << lumi_J << " event: " << evt_J << endl;
+
+      //check if jet and weight are on the same event, if they are the same, increment the jetTreeCount variable to keep weight and jet trees in sync
+      if( (vz_J != vz_E) && (lumi_J != lumi_E) && (evt_J != evt_E)) {  cout << "RED FLAG!!!! event not same, JetTreeCount: " << jetTreeCount << " nentry: " << nentry << endl;  continue;}
+      jetTreeCount++; 
+      
+      //fill pThat spectra plot
+      h_weight->Fill(pThat, pThat_weight); 
       
       //intial pT cut
       for(int k = 0; k < nref; k++){
@@ -252,10 +302,7 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
       if(!select) continue;
       if(debug) cout << " \n ******* New Event ******** " << endl;
       if(debug) cout << "nref: " << nref << endl;
-
-      //fill pThat spectra plot
-      h_weight->Fill(pThat, pThat_weight); 
-     
+   
       //reset maximum values
       eventCount++;
       thrust_max = 0; 
@@ -332,8 +379,7 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
 	  max_eta = temp_eta;
 	  max_phi = temp_phi; 
 	}
-	
-	if(debug) cout<< "max thrust = " << thrust_max << endl;
+	if(debug) cout << "max thrust = " << thrust_max << endl;
 
       }//end axis loop
  
@@ -362,6 +408,7 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
 	
 	//define maj_axis and min_axis 
 	TVector3 maj_axis = perp->Projection(Norm(p3));
+	if(debug) cout<<"Maj Axis = {" << maj_axis(0) << ", " << maj_axis(1) << ", " << maj_axis(2)<< "}" << endl;
 	maj_axis = Norm(maj_axis);
 	TVector3 min_axis = max_thrust_axis.Cross(maj_axis);
 	min_axis = Norm(min_axis); 
@@ -396,6 +443,7 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
 	  if(debug) cout << "Jet Axis = {" << p3jet(0) << ", " << p3jet(1) << ", " << p3jet(2)<< "}" << endl;
 	  
 	  //dots the two vectors for Tmin and Tmaj
+	  if(debug) cout<<"Maj Axis = {" << maj_axis(0) << ", " << maj_axis(1) << ", " << maj_axis(2)<< "}" << endl;
 	  dot_maj += TMath::Abs(p3jet.Dot(maj_axis)); 
 	  dot_min += TMath::Abs(p3jet.Dot(min_axis));
 	  if(debug) cout<<"dot maj sum = " << dot_maj << endl;
@@ -429,11 +477,11 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
 	h_phi->Fill(max_phi, pThat_weight);
 	h_min->Fill(thrust_min_max, pThat_weight);
 	h_maj->Fill(thrust_maj_max, pThat_weight);
-	h_nref->Fill(nref, pThat_weight);
-	h_jetCount->Fill(jetCount, pThat_weight);
+	h_nref->Fill(nref);
+	h_jetCount->Fill(jetCount);
 
 	if(debug) {
-	  if (thrust_max < 0.5)       cout << "FLAG: " << thrust_max <<  " , " << jetCount << endl; 
+	  if (thrust_max < 0.5)       cout << "FLAG_thrust1: " << thrust_max <<  " , " << jetCount << endl; 
 	  if (thrust_maj_max > 0.5)   cout << "FLAG_maj: " << thrust_maj_max <<  " , " << jetCount << endl; 
 	  if (thrust_min_max > 0.5)   cout << "FLAG_min: " << thrust_min_max <<  " , " << jetCount << endl;
 	}
@@ -446,6 +494,8 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
     }//end of event loop
 
     file->Close();
+    //TROOT::gROOT->GetListOfFiles()->Remove(file);
+    //ROOT.gROOT.GetListOfFiles().Remove(weight);
     weight_file->Close();
 
     cout << "Events Selected: " << eventCount << endl;
