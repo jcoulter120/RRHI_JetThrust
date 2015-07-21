@@ -578,9 +578,3 @@ void thrust_data(Float_t pT_cut = 30, Int_t radius = 2, int startfile = 21, int 
   cout<<"Real time (min) = "<<(Float_t)timer.RealTime()/60<<endl;
   
 }//end of plot thrust
-
-
-//for each file create an event level output tree with seven branches
-//vs run lumi event thrust thrust min thrust maj
-//add tree to an output file
-//can look at thrust from .8 to 1 for a certain type of event like dijet
