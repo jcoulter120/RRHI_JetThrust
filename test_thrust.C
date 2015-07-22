@@ -1,6 +1,6 @@
 // Jennifer Coulter
 // May 22th 2015
-// Rutgers, jennifer.coulter@cern.ch
+// Rutgers University, jennifer.coulter@cern.ch
 //
 // Test macro for plotting thrust, an event shape variable.
 //
