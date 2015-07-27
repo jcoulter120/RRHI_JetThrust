@@ -49,21 +49,22 @@ void test_thrust_draw(){
   gStyle->SetOptStat(0);
 
   bool debug = true; 
+
   
   //define trees and file
-  TFile * fin = TFile::Open("test_pp_thrust.root");
+  TFile * fin = TFile::Open("test_pp_thrust_0.root");
   TH1F * h_pT = (TH1F*)fin->Get("pTcut"); 
   TH1F * h_T = (TH1F*)fin->Get("thrust_scaled");
   TH1F * h_Tmaj = (TH1F*)fin->Get("thrust_maj_scaled");
   TH1F * h_Tmin = (TH1F*)fin->Get("thrust_min_scaled");
-  TH1F * h_40 = (TH1F*)fin->Get("thrust_40_new");
-  TH1F * h_60 = (TH1F*)fin->Get("thrust_60_new");
-  TH1F * h_80 = (TH1F*)fin->Get("thrust_80_new");
+  //TH1F * h_40 = (TH1F*)fin->Get("thrust_40_new");
+  //TH1F * h_60 = (TH1F*)fin->Get("thrust_60_new");
+  //TH1F * h_80 = (TH1F*)fin->Get("thrust_80_new");
   TH1F * h_nref = (TH1F*)fin->Get("nref");
   TH1F * h_jetCount = (TH1F*)fin->Get("jetCount");
   TH1F * h_eta = (TH1F*)fin->Get("eta");
   TH1F * h_phi = (TH1F*)fin->Get("phi");
-  TH1F * h_pthat = (TH1F*)fin->Get("weighting"); 
+  //TH1F * h_pthat = (TH1F*)fin->Get("weighting"); 
 
   TCanvas * canvas = new TCanvas("c","Thrust Test", 1200, 1200);
   TCanvas * canvas2 = new TCanvas("c2", "Thrust Test", 1200, 1200);
@@ -87,8 +88,8 @@ void test_thrust_draw(){
     cout << "Eta Entries: " << endl;
     h_eta->Print("base");
 
-    cout << "pThat Entries: " << endl;
-    h_pthat->Print("base"); 
+    //cout << "pThat Entries: " << endl;
+    //h_pthat->Print("base"); 
   }
   
   //plot with scaling, error bars, and marker styles
@@ -100,6 +101,7 @@ void test_thrust_draw(){
   h_T->GetXaxis()->CenterTitle();
   h_T->GetYaxis()->CenterTitle();
   h_T->SetMarkerStyle(20);   h_Tmaj->SetMarkerStyle(21);   h_Tmin->SetMarkerStyle(22);
+  //h_T->SetMarkerStyle(2);   h_Tmaj->SetMarkerStyle(5);   h_Tmin->SetMarkerStyle(3);
   TLegend * a = new TLegend(0.2,.70,.4,.85);
   a->AddEntry(h_T, "Thrust", "p");
   a->AddEntry(h_Tmaj, "Thrust Major", "p");
@@ -114,17 +116,12 @@ void test_thrust_draw(){
   h_pT->SetTitle("Preliminary Thrust vs. Counts"); 
   h_pT->SetXTitle("Thrust");
   h_pT->SetYTitle("(1/N)");
-  //h_T->SetAxisRange(1e-5,1,"Y");
   h_pT->GetXaxis()->CenterTitle();
   h_pT->GetYaxis()->CenterTitle();
-  //h_T->SetMarkerStyle(2);   h_Tmaj->SetMarkerStyle(5);   h_Tmin->SetMarkerStyle(3);
   //TLegend * b = new TLegend(0.2,.70,.4,.85);
   //b->AddEntry(h_notScaled, "Thrust", "p");
-  //b->AddEntry(h_Tmaj, "Thrust Major", "p");
-  //b->AddEntry(h_Tmin, "Thrust Minor", "p");
   h_pT->Draw("p");
-  //h_Tmin->Draw("p&same");
-  //h_Tmaj->Draw("p&same");
+
   //b->Draw("same");
   
   //eta bias check plot
@@ -168,19 +165,19 @@ void test_thrust_draw(){
   canvas->cd(6)->SetLogy();
   TLegend*d = new TLegend(0.2,.7,.3,.85);
 
-  h_80->SetLineColor(2);   d->AddEntry(h_80,"jtpt80","l");
-  h_60->SetLineColor(3);   d->AddEntry(h_60,"jtpt60","l");
-  h_40->SetLineColor(4);   d->AddEntry(h_40,"jtpt40","l");
-  h_80->SetTitle("Preliminary Thrust vs. Counts for jtpt Cuts 40, 60, 80"); 
-  h_80->SetXTitle("Thrust");
-  h_80->SetYTitle("dN/dT (1/N)");
-  h_80->GetXaxis()->CenterTitle();
-  h_80->GetYaxis()->CenterTitle();
-  h_80->SetAxisRange(1e-5,1,"Y");
-  h_80->Draw("p");
-  d->Draw("SAME"); 
-  h_60->Draw("p&SAME"); 
-  h_40->Draw("p&SAME");
+  //h_80->SetLineColor(2);   d->AddEntry(h_80,"jtpt80","l");
+  //h_60->SetLineColor(3);   d->AddEntry(h_60,"jtpt60","l");
+  //h_40->SetLineColor(4);   d->AddEntry(h_40,"jtpt40","l");
+  //h_80->SetTitle("Preliminary Thrust vs. Counts for jtpt Cuts 40, 60, 80"); 
+  //h_80->SetXTitle("Thrust");
+  //h_80->SetYTitle("dN/dT (1/N)");
+  //h_80->GetXaxis()->CenterTitle();
+  //h_80->GetYaxis()->CenterTitle();
+  //h_80->SetAxisRange(1e-5,1,"Y");
+  //h_80->Draw("p");
+  //d->Draw("SAME"); 
+  //h_60->Draw("p&SAME"); 
+  //h_40->Draw("p&SAME");
 
   canvas2->cd(1)->SetLogy();
   h_pT->SetTitle("pT after Cuts"); 
@@ -190,13 +187,13 @@ void test_thrust_draw(){
   h_pT->GetYaxis()->CenterTitle();
   h_pT->Draw("p");
 
-  canvas2->cd(2)->SetLogy();
-  h_pthat->SetTitle("pThat"); 
-  h_pthat->SetXTitle("pThat");
-  h_pthat->SetYTitle("Counts");
-  h_pthat->GetXaxis()->CenterTitle();
-  h_pthat->GetYaxis()->CenterTitle();
-  h_pthat->Draw("p");
+  // canvas2->cd(2)->SetLogy();
+  //h_pthat->SetTitle("pThat"); 
+  // h_pthat->SetXTitle("pThat");
+  //h_pthat->SetYTitle("Counts");
+  //h_pthat->GetXaxis()->CenterTitle();
+  //h_pthat->GetYaxis()->CenterTitle();
+  //h_pthat->Draw("p");
 
   canvas2->Print("pTcut.png"); 
   canvas->Print("test_pp_thrust.pdf"); 

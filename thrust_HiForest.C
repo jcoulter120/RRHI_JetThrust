@@ -49,11 +49,12 @@ public:
   //returns a projection onto the 2D plane 
   TVector3 Projection(TVector3 jaxis){
     //Find the projection of a jet onto this subspace
-    Double_t scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));
-    Double_t scalar2 = (jaxis.Dot(v2)/v2.Dot(v2)); 
-    TVector3 u1 = v1;   u1 = scalar1*u1;    
-    TVector3 u2 = v2;   u2 = scalar2*u2;
-    TVector3 proj = u1.operator+=(u2);
+    scalar1 = jaxis.Dot(v1)/(v1.Dot(v1));
+    scalar2 = jaxis.Dot(v2)/(v2.Dot(v2)); 
+    v1 = scalar1*v1;
+    v2 = scalar2*v2;
+    
+    proj = v1.operator+=(v2);
     return proj;
   }//end of projection
 };
@@ -97,25 +98,21 @@ TVector3 Norm(TVector3 v){
 
 //plot thrust
 //void thrust_HiForest(Int_t startfile, Int_t endfile, Int_t jobNumber){
-void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber = 1){
+void thrust_HiForest(Int_t startfile, Int_t endfile, Int_t jobNumber){
 
   TH1::SetDefaultSumw2();
 
   TStopwatch timer;
-  timer.Start();
-  
-  bool debug = true;
+  bool debug = false;
   Float_t pT_cut = 30;
   Int_t radius = 3;
-  jobNumber = 0; 
   
   //define trees and file
-  //********* FIX FILE OPENING HERE
   TFile * file; 
   TFile * weight_file;
   TTree * t;
   TTree * hiEvt;
-  TTree * hlt;
+  //TTree * hlt;
   TTree * skim;
   TTree * weight;
   TTree * thrust_tree;
@@ -134,9 +131,9 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
   TH1F * h_maj = new TH1F("thrust_maj", "", 50,0,1);
   TH1F * h_pT = new TH1F("pT", "", 100, 0, 120);
   TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120);
-  TH1F * h_40 = new TH1F("thrust_40", "", 50,0,1);
-  TH1F * h_60 = new TH1F("thrust_60", "", 50,0,1);
-  TH1F * h_80 = new TH1F("thrust_80", "", 50,0,1);
+  //TH1F * h_40 = new TH1F("thrust_40", "", 50,0,1);
+  //TH1F * h_60 = new TH1F("thrust_60", "", 50,0,1);
+  //TH1F * h_80 = new TH1F("thrust_80", "", 50,0,1);
   TH1F * h_nref = new TH1F("nref", "", 12, 0, 12);
   TH1F * h_jetCount = new TH1F("jetCount", "", 12, 0, 12);
   TH1F * h_eta = new TH1F("eta", "", 60, -2, 2);
@@ -204,7 +201,7 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
     //define trees and file
     t = (TTree*)file->Get(Form("ak%dPFJetAnalyzer/t", radius));
     hiEvt = (TTree*)file->Get("hiEvtAnalyzer/HiTree");
-    hlt = (TTree*)file->Get("hltanalysis/HltTree");
+    //hlt = (TTree*)file->Get("hltanalysis/HltTree");
     skim = (TTree*)file->Get("skimanalysis/HlTree");
     weight = (TTree*)weight_file->Get("weights");
     
@@ -220,22 +217,22 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
     //skim->SetBranchAddress("pHBHENoiseFilter", &noise);
     //skim->SetBranchAddress("pPAcollisionEventSelectionPA",&halo);
   
-    hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jt80);
-    hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jt60);
-    hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jt40);
-    hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
-    hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
-    hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
+    //hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jt80);
+    //hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jt60);
+    //hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jt40);
+    //hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
+    //hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
+    //hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
 
     weight->SetBranchAddress("pthatweight", &pThat_weight);
 
     t->AddFriend(hiEvt);
     t->AddFriend(skim);
-    t->AddFriend(hlt);
+    //t->AddFriend(hlt);
     t->AddFriend(weight);
     
     Long64_t nentries = t->GetEntries();
-    nentries = 1;
+    nentries = 10000;
 
     cout << "Events in File: " << nentries << endl;
     eventCount = 0;
@@ -246,6 +243,7 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
       if(nentry%10000 == 0) cout << nentry << "%" << endl;
       
       t->GetEntry(nentry);
+      
       jetCount = 0;
       bool select = false;
 
@@ -344,13 +342,15 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
 	  max_eta = temp_eta;
 	  max_phi = temp_phi; 
 	}
+
       
 	if(debug) cout<< "max thrust = " << thrust_max << endl;
       
       }//end axis loop
 
       //Part 3: Begin code to select the Thrust Major and Minor axes
- 
+
+      timer.Continue();
       //define the plane perpendicular to this axis in order to calculate Tmaj and Tmin
       Plane* perp = new Plane(max_thrust_axis);
 
@@ -371,10 +371,9 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
       
 	//define momentum three vector
 	TVector3 p3 (px[naxis], py[naxis], pz[naxis]);
-	TVector3 p3Norm = Norm(p3);
             
 	//define maj_axis and min_axis 
-	TVector3 maj_axis = perp->Projection(p3Norm);
+	TVector3 maj_axis = perp->Projection(Norm(p3));
 	maj_axis = Norm(maj_axis);
 	TVector3 min_axis = max_thrust_axis.Cross(maj_axis);
 	min_axis = Norm(min_axis); 
@@ -430,6 +429,7 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
 	  if(debug) cout << "thrust major max = "<< thrust_maj_max<< endl; 
 	}   
       }//end of major/minor axis loop
+      timer.Stop();
 
       //fill all the maximum values before finishing
       if(jetCount > 1){
@@ -446,11 +446,10 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
 	  if (thrust_max < 0.5)       cout << "FLAG_thrust1: " << thrust_max <<  " , " << jetCount << endl; 
 	  if (thrust_maj_max > 0.5)   cout << "FLAG_maj: " << thrust_maj_max <<  " , " << jetCount << endl; 
 	  if (thrust_min_max > 0.5)   cout << "FLAG_min: " << thrust_min_max <<  " , " << jetCount << endl;
-	}
-	
-	if(jt80)    h_80->Fill(thrust_max,jt80_pre * pThat_weight);
-	if(jt60)    h_60->Fill(thrust_max,jt60_pre * pThat_weight);
-	if(jt40)    h_40->Fill(thrust_max,jt40_pre * pThat_weight);
+	}	
+	//if(jt80)    h_80->Fill(thrust_max,jt80_pre * pThat_weight);
+	//if(jt60)    h_60->Fill(thrust_max,jt60_pre * pThat_weight);
+	//if(jt40)    h_40->Fill(thrust_max,jt40_pre * pThat_weight);
       }
     }//end of event loop
 
@@ -474,14 +473,14 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
   integral = h_min->Integral();
   h_min->Scale(integral);
 
-  integral = h_80->Integral();
-  h_80->Scale(integral);
+  //integral = h_80->Integral();
+  //h_80->Scale(integral);
 
-  integral = h_60->Integral();
-  h_60->Scale(integral);
+  //integral = h_60->Integral();
+  //h_60->Scale(integral);
 
-  integral = h_40->Integral();
-  h_40->Scale(integral); 
+  // integral = h_40->Integral();
+  //h_40->Scale(integral); 
  
   //Create the plot for Thrust vs. dN/dT
   //define histograms
@@ -495,9 +494,9 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
   h_Tmaj->Scale(divEntries);
   h_Tmin->Scale(divEntries);
 
-  h_40 = DivideByBinWidth(h_40, "thrust_40_new");   h_40->Scale(divEntries);
-  h_60 = DivideByBinWidth(h_60, "thrust_60_new");   h_60->Scale(divEntries);
-  h_80 = DivideByBinWidth(h_80, "thrust_80_new");   h_80->Scale(divEntries);
+  //h_40 = DivideByBinWidth(h_40, "thrust_40_new");   h_40->Scale(divEntries);
+  //h_60 = DivideByBinWidth(h_60, "thrust_60_new");   h_60->Scale(divEntries);
+  //h_80 = DivideByBinWidth(h_80, "thrust_80_new");   h_80->Scale(divEntries);
 
   TFile * save_File = new TFile(Form("test_pp_thrust_%d.root", jobNumber),"RECREATE");
   
@@ -506,9 +505,9 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
   h_Tmin->SetDirectory(save_File); 
   h_pT->SetDirectory(save_File); 
   h_pTcut->SetDirectory(save_File); 
-  h_40->SetDirectory(save_File); 
-  h_60->SetDirectory(save_File); 
-  h_80->SetDirectory(save_File);
+  //h_40->SetDirectory(save_File); 
+  //h_60->SetDirectory(save_File); 
+  //h_80->SetDirectory(save_File);
   h_nref->SetDirectory(save_File); 
   h_jetCount->SetDirectory(save_File); 
   h_eta->SetDirectory(save_File); 
@@ -520,9 +519,9 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
   h_Tmin->Write();
   h_pT->Write();
   h_pTcut->Write();
-  h_40->Write();
-  h_60->Write();
-  h_80->Write();
+  //h_40->Write();
+  //h_60->Write();
+  //h_80->Write();
   h_nref->Write();
   h_jetCount->Write();
   h_eta->Write();
@@ -534,6 +533,7 @@ void thrust_HiForest(Int_t startfile = 10, Int_t endfile = 11, Int_t jobNumber =
 
   timer.Stop();
   cout<<"Macro finished: "<<endl;
+  
   cout<<"CPU time (min)  = "<<(Float_t)timer.CpuTime()/60<<endl;
   cout<<"Real time (min) = "<<(Float_t)timer.RealTime()/60<<endl;
     
