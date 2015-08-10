@@ -103,9 +103,10 @@ TVector3 Norm(TVector3 v){
 
 //plot thrust
 //void thrust_HiForest(Int_t startfile, Int_t endfile, Int_t jobNumber){
-void thrust_HiForest(Int_t startfile = 13,
-		     Int_t endfile = 14,
-		     Int_t jobNumber = 100,
+
+void thrust_HiForest(Int_t startfile = 0,
+		     Int_t endfile = 45,
+		     Int_t jobNumber = 10000,
 		     Int_t radius = 3,
 		     float ptCut = 30.0,
 		     float etaCut = 2.0){
@@ -113,7 +114,7 @@ void thrust_HiForest(Int_t startfile = 13,
   TH1::SetDefaultSumw2();
 
   TStopwatch timer;
-  bool debug = true;
+  bool debug = false;
   //Float_t pT_cut = 30;
   //Int_t radius = 3;
   
@@ -135,6 +136,10 @@ void thrust_HiForest(Int_t startfile = 13,
   thrust_tree->Branch("lumi",&lumi,"lumi/I");
   thrust_tree->Branch("vz",&vz,"vz/F");
   */
+
+  
+  TFile * save_File = new TFile(Form("test_pp_thrust_%d.root", jobNumber),"RECREATE");
+  save_File->cd();
   
   TH1F * h_thrust = new TH1F("thrust_unscaled", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust_min", "", 50,0,1);
@@ -162,6 +167,7 @@ void thrust_HiForest(Int_t startfile = 13,
   TH1F * h_jetCountBad = new TH1F("jetCountBad", "", 12, 0, 12);
   TH1F * h_weightBad = new TH1F("weightingBad", "", 500, 0, 500);
   TH1F * h_pthatBad = new TH1F("pthatBad", "", 500, 0, 500);
+  TH1F * h_fileNum = new TH1F("fileNum", "", 45, 0, 45);
 
   //Tree variables
   Float_t pt[1000];    Int_t jt80;   Int_t jt80_pre;
@@ -192,8 +198,9 @@ void thrust_HiForest(Int_t startfile = 13,
   Double_t thrust_min_max = 0;
   TVector3 max_thrust_axis;
   TVector3 p3Norm;
-  Float_t max_eta = 0;   Float_t temp_eta = 0;  
-  Float_t max_phi = 0;   Float_t temp_phi = 0;  
+  //Float_t max_eta = 0;   Float_t temp_eta = 0;  
+  //Float_t max_phi = 0;   Float_t temp_phi = 0;
+  Int_t max_nref;
   Int_t jetCount = 0; //in order to sum up the number of jets per event
   Int_t eventCount = 0;//check to see how many of the events in each file are actually being used
 
@@ -219,7 +226,7 @@ void thrust_HiForest(Int_t startfile = 13,
     string s = filename[ifile];
     string w = Form("weights/weights_pp_%d.root", ifile+1); 
     file = TFile::Open(s.c_str());
-    weight_file = TFile::Open(w.c_str());     
+    weight_file = TFile::Open(w.c_str());
 
     if (debug) cout << "\n **** =========================== New File ================================= **** \n ";
     cout << "File Name: " << filename[ifile] << endl; 
@@ -260,14 +267,14 @@ void thrust_HiForest(Int_t startfile = 13,
     t->AddFriend(weight);
     
     Long64_t nentries = t->GetEntries();
-    nentries = 10000;
+    //nentries = 10000;
     
     cout << "Events in File: " << nentries << endl;
     eventCount = 0;
     
     //event loop
     for(Long64_t nentry = 0; nentry<nentries; ++nentry){
-    //for(Long64_t nentry = 3225; nentry<3226; ++nentry){
+    //for(Long64_t nentry = 6662; nentry<6663; ++nentry){
       
       if(nentry%10000 == 0) cout << nentry << endl;
       
@@ -367,7 +374,7 @@ void thrust_HiForest(Int_t startfile = 13,
 	if(debug) cout<< " \n --------- New Test Axis (Thrust)--------- " << endl; 
 	
 	//reset values for this particular event
-	thrust_temp = 0;   maj_temp = 0;   min_temp = 0;
+	thrust_temp = 0;  // maj_temp = 0;   min_temp = 0;
 	
 	// px[naxis] = pt[naxis]*TMath::Cos(phi[naxis]);
 	// py[naxis] = pt[naxis]*TMath::Sin(phi[naxis]);
@@ -379,7 +386,7 @@ void thrust_HiForest(Int_t startfile = 13,
 	nT = Norm(nT);
 	
 	if(debug) cout<<"Test Axis = {" << nT(0) << ", " << nT(1) << ", " << nT(2)<< "}" << endl;
-	temp_phi = axis_jet_phi;   temp_eta = axis_jet_eta; 
+	//temp_phi = axis_jet_phi;   temp_eta = axis_jet_eta;
 	
 	//resets for next jet loop
 	dot = 0;   mag = 0;
@@ -427,31 +434,34 @@ void thrust_HiForest(Int_t startfile = 13,
 	if(thrust_temp>thrust_max){
 	  thrust_max = thrust_temp;
 	  max_thrust_axis = nT;
-	  max_eta = temp_eta;
-	  max_phi = temp_phi;
+	  //max_eta = temp_eta;
+	  //max_phi = temp_phi;
+	  max_nref = naxis;
 	  
 	}
 	if(debug) cout<< "max thrust = " << thrust_max << endl;
 	
       }//end axis loop
-
+      
       if (debug) cout << "FINAL THRUST VALUE: " << thrust_max << endl; 
-
+      
       // FILL BAD THRUST VALUES TO DEBUG =============================
-      if(thrust_max < 0.5) {
+      if(thrust_max < 0.47) {
 	
 	//h_TBadpT->Fill(pt[naxis], pThat_weight);
 	h_TBad->Fill(thrust_max, pThat_weight);
-	h_etaBad->Fill(max_eta,pThat_weight);
-	h_phiBad->Fill(max_phi, pThat_weight);
-	//h_nrefBad->Fill(nref);
-	//h_jetCountBad->Fill(NJets_Sel);
-	//h_weightBad->Fill(pThat_weight);
-	//h_pthatBad->Fill(pThat);
+	h_etaBad->Fill(eta_v[max_nref],pThat_weight);
+	h_phiBad->Fill(phi_v[max_nref], pThat_weight);
+	h_nrefBad->Fill(max_nref);
+	h_jetCountBad->Fill(NJets_Sel);
+	h_weightBad->Fill(pThat_weight);
+	h_pthatBad->Fill(pThat);
+	h_fileNum->Fill(ifile);
 
 	if (debug) cout << "______________________________" << endl; 
-	if (debug) cout << "| XXX : THRUST LESS THAN 0.5 |" << endl;
+	if (debug) cout << "| X0X : THRUST LESS THAN 0.5 |" << endl;
 	if (debug) cout << "|  Max Thrust: " << thrust_max << endl;
+	//cout << "|  Max Thrust: " << thrust_max << endl;
 	if (debug) cout << "______________________________" << endl; 
       }
       
@@ -561,8 +571,8 @@ void thrust_HiForest(Int_t startfile = 13,
       // if(jetCount > 1){
 	
       h_thrust->Fill(thrust_max, pThat_weight);
-      h_eta->Fill(max_eta, pThat_weight);
-      h_phi->Fill(max_phi, pThat_weight);
+      h_eta->Fill(eta_v[max_nref], pThat_weight);
+      h_phi->Fill(phi_v[max_nref], pThat_weight);
       h_min->Fill(thrust_min_max, pThat_weight);
       h_maj->Fill(thrust_maj_max, pThat_weight);
       h_nref->Fill(nref);
@@ -603,9 +613,9 @@ void thrust_HiForest(Int_t startfile = 13,
   
   // integral = h_thrust->Integral();
   // h_thrust->Scale(1/integral);
-  h_thrust->Scale(1./h_thrust->Integral());
-  h_maj->Scale(1./h_maj->Integral());
-  h_min->Scale(1./h_min->Integral());
+  //h_thrust->Scale(1./h_thrust->Integral());
+  //h_maj->Scale(1./h_maj->Integral());
+  //h_min->Scale(1./h_min->Integral());
 
   // integral = h_maj->Integral(); 
   // h_maj->Scale(1/integral);
@@ -637,23 +647,6 @@ void thrust_HiForest(Int_t startfile = 13,
   //h_40 = DivideByBinWidth(h_40, "thrust_40_new");   h_40->Scale(divEntries);
   //h_60 = DivideByBinWidth(h_60, "thrust_60_new");   h_60->Scale(divEntries);
   //h_80 = DivideByBinWidth(h_80, "thrust_80_new");   h_80->Scale(divEntries);
-
-  TFile * save_File = new TFile(Form("test_pp_thrust_%d.root", jobNumber),"RECREATE");
-  save_File->cd();
-
-  // h_T->SetDirectory(save_File);
-  // h_Tmaj->SetDirectory(save_File); 
-  // h_Tmin->SetDirectory(save_File); 
-  // h_pT->SetDirectory(save_File); 
-  // h_pTcut->SetDirectory(save_File); 
-  // //h_40->SetDirectory(save_File); 
-  // //h_60->SetDirectory(save_File); 
-  // //h_80->SetDirectory(save_File);
-  // h_nref->SetDirectory(save_File); 
-  // h_jetCount->SetDirectory(save_File); 
-  // h_eta->SetDirectory(save_File); 
-  // h_phi->SetDirectory(save_File);
-  // h_weight->SetDirectory(save_File); 
 
   h_T->Print("base");
   h_Tmaj->Print("base");
@@ -694,18 +687,6 @@ void thrust_HiForest(Int_t startfile = 13,
 
     bad_File->cd();
     
-    // h_TBadpT->SetDirectory(bad_File); 
-    // h_TminBadpT->SetDirectory(bad_File); 
-    // h_TmajBadpT->SetDirectory(bad_File); 
-    // h_TBad->SetDirectory(bad_File); 
-    // h_TmajBad->SetDirectory(bad_File); 
-    // h_TminBad->SetDirectory(bad_File);
-    // h_etaBad->SetDirectory(bad_File); 
-    // h_phiBad->SetDirectory(bad_File);
-    // h_jetCountBad->SetDirectory(bad_File); 
-    // h_nrefBad->SetDirectory(bad_File);
-    // h_pthatBad->SetDirectory(bad_File); 
-    // h_weightBad->SetDirectory(bad_File);
     h_TBad->Print("base");
     h_TmajBad->Print("base");
     h_TminBad->Print("base");
@@ -718,6 +699,7 @@ void thrust_HiForest(Int_t startfile = 13,
     h_jetCountBad->Print("base");
     h_pthatBad->Print("base");
     h_weightBad->Print("base");
+    h_fileNum->Print("base"); 
     
     h_TBad->Write();
     h_TmajBad->Write();
@@ -731,6 +713,7 @@ void thrust_HiForest(Int_t startfile = 13,
     h_jetCountBad->Write();
     h_pthatBad->Write();
     h_weightBad->Write();
+    h_fileNum->Write();
     
     bad_File->Write();
     bad_File->Close();
