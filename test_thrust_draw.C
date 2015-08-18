@@ -50,9 +50,8 @@ void test_thrust_draw(){
 
   bool debug = true; 
 
-  
   //define trees and file
-  TFile * fin = TFile::Open("test_pp_thrust_0.root");
+  TFile * fin = TFile::Open("test_pp_thrust_5000.root");
   TH1F * h_pT = (TH1F*)fin->Get("pTcut"); 
   TH1F * h_T = (TH1F*)fin->Get("thrust_scaled");
   TH1F * h_Tmaj = (TH1F*)fin->Get("thrust_maj_scaled");
@@ -64,12 +63,12 @@ void test_thrust_draw(){
   TH1F * h_jetCount = (TH1F*)fin->Get("jetCount");
   TH1F * h_eta = (TH1F*)fin->Get("eta");
   TH1F * h_phi = (TH1F*)fin->Get("phi");
-  //TH1F * h_pthat = (TH1F*)fin->Get("weighting"); 
+  TH1F * h_pthat = (TH1F*)fin->Get("weighting"); 
 
   TCanvas * canvas = new TCanvas("c","Thrust Test", 1200, 1200);
-  TCanvas * canvas2 = new TCanvas("c2", "Thrust Test", 1200, 1200);
+  //TCanvas * canvas2 = new TCanvas("c2", "Thrust Test", 1200, 1200);
   canvas->Divide(2,3);
-  canvas2->Divide(2,3); 
+  //canvas2->Divide(2,3); 
 
   if (debug) {
 
@@ -88,7 +87,7 @@ void test_thrust_draw(){
     cout << "Eta Entries: " << endl;
     h_eta->Print("base");
 
-    //cout << "pThat Entries: " << endl;
+    cout << "pThat Entries: " << endl;
     //h_pthat->Print("base"); 
   }
   
@@ -113,11 +112,11 @@ void test_thrust_draw(){
   
   //plot with scaling, error bars, and matching marker styles
   canvas->cd(2)->SetLogy();
-  h_pT->SetTitle("Preliminary Thrust vs. Counts"); 
-  h_pT->SetXTitle("Thrust");
-  h_pT->SetYTitle("(1/N)");
-  h_pT->GetXaxis()->CenterTitle();
-  h_pT->GetYaxis()->CenterTitle();
+  h_pthat->SetTitle("pThat vs. Counts (pThat Weighting Check"); 
+  h_pthat->SetXTitle("pThat");
+  h_pthat->SetYTitle("Counts");
+  h_pthat->GetXaxis()->CenterTitle();
+  h_pthat->GetYaxis()->CenterTitle();
   //TLegend * b = new TLegend(0.2,.70,.4,.85);
   //b->AddEntry(h_notScaled, "Thrust", "p");
   h_pT->Draw("p");
@@ -126,7 +125,7 @@ void test_thrust_draw(){
   
   //eta bias check plot
   canvas->cd(3);
-  h_eta->SetTitle("Eta vs. dN/dT"); 
+  h_eta->SetTitle("Eta vs. Counts"); 
   h_eta->SetXTitle("Eta");
   h_eta->SetYTitle("Counts");
   //h_eta->SetAxisRange(10,110,"Y");
@@ -137,7 +136,7 @@ void test_thrust_draw(){
 
   //phi bias check plot
   canvas->cd(4);
-  h_phi->SetTitle("Phi vs. dN/dT"); 
+  h_phi->SetTitle("Phi vs. Counts"); 
   h_phi->SetXTitle("Phi (radians)");
   h_phi->SetYTitle("Counts");
   //h_phi->SetAxisRange(10,110,"Y");
@@ -151,12 +150,12 @@ void test_thrust_draw(){
   TLegend*c = new TLegend(0.55,.75,.85,.85);
   h_jetCount->SetLineColor(2);   c->AddEntry(h_jetCount,"selected jet count","l");
   h_nref->SetLineColor(4);       c->AddEntry(h_nref,"nref","l");
-  h_nref->SetTitle("Preliminary Thrust vs. Counts for pT Cuts"); 
+  h_nref->SetTitle("Number of Jets vs. Counts"); 
   h_nref->SetXTitle("Number of Jets");
   h_nref->SetYTitle("Counts");
   h_nref->GetXaxis()->CenterTitle();
   h_nref->GetYaxis()->CenterTitle();
-  h_nref->SetAxisRange(1e-5,10000,"Y");
+  h_nref->SetAxisRange(1e-5,1000000000,"Y");
   h_nref->Draw();
   h_jetCount->Draw("SAME");			     
   c->Draw("SAME");
@@ -179,23 +178,25 @@ void test_thrust_draw(){
   //h_60->Draw("p&SAME"); 
   //h_40->Draw("p&SAME");
 
-  canvas2->cd(1)->SetLogy();
-  h_pT->SetTitle("pT after Cuts"); 
-  h_pT->SetXTitle("pT");
-  h_pT->SetYTitle("Counts");
-  h_pT->GetXaxis()->CenterTitle();
-  h_pT->GetYaxis()->CenterTitle();
-  h_pT->Draw("p");
+  //canvas2->cd(1)->SetLogy();
+  //h_pT->SetTitle("pT after Cuts"); 
+  //h_pT->SetXTitle("pT");
+  //h_pT->SetYTitle("Counts");
+  //h_pT->GetXaxis()->CenterTitle();
+  //h_pT->GetYaxis()->CenterTitle();
+  //h_pT->Draw("p");
 
   // canvas2->cd(2)->SetLogy();
-  //h_pthat->SetTitle("pThat"); 
-  // h_pthat->SetXTitle("pThat");
-  //h_pthat->SetYTitle("Counts");
-  //h_pthat->GetXaxis()->CenterTitle();
-  //h_pthat->GetYaxis()->CenterTitle();
-  //h_pthat->Draw("p");
+  /*
+  h_pthat->SetTitle("pThat"); 
+  h_pthat->SetXTitle("pThat");
+  h_pthat->SetYTitle("Counts");
+  h_pthat->GetXaxis()->CenterTitle();
+  h_pthat->GetYaxis()->CenterTitle();
+  h_pthat->Draw("p");
+  */
 
-  canvas2->Print("pTcut.png"); 
+  //canvas2->Print("pTcut.png"); 
   canvas->Print("test_pp_thrust.pdf"); 
 
 }//end of plot thrust

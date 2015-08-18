@@ -1,5 +1,5 @@
 // Jennifer Coulter
-// July 22nd 2015
+// August 13th 2015
 // Rutgers University, jennifer.coulter@cern.ch
 //
 // Test macro for plotting thrust, an event shape variable.
@@ -104,9 +104,9 @@ TVector3 Norm(TVector3 v){
 //plot thrust
 //void thrust_HiForest(Int_t startfile, Int_t endfile, Int_t jobNumber){
 
-void thrust_HiForest(Int_t startfile = 15,
-		     Int_t endfile = 16,
-		     Int_t jobNumber = 10000,
+void thrust_Jewel(Int_t startfile = 0,
+		     Int_t endfile = 11,
+		     Int_t jobNumber = 5000,
 		     Int_t radius = 3,
 		     float ptCut = 30.0,
 		     float etaCut = 2.0){
@@ -115,7 +115,7 @@ void thrust_HiForest(Int_t startfile = 15,
 
   TStopwatch timer;
   bool debug = false;
-  bool weighted = true; 
+  bool weighted = false; 
   //Float_t pT_cut = 30;
   //Int_t radius = 3;
   
@@ -123,12 +123,20 @@ void thrust_HiForest(Int_t startfile = 15,
   TFile * file; 
   TFile * weight_file;
   TTree * t;
-  TTree * hiEvt;
-  //TTree * hlt;
-  TTree * skim;
+  TTree * hi;
+  TTree * nt;
   TTree * weight;
-  TFile * save_File = new TFile(Form("test_pp_thrust_%d.root", jobNumber),"RECREATE");
+  TTree * thrust_tree;
 
+  /*
+  //set up the tree to be filled
+  thrust_tree->Branch("pthatweight",&pthatweight,"pthatweight/D");
+  thrust_tree->Branch("hiBin",&hiBin,"hiBin/I");
+  thrust_tree->Branch("evt",&evnt,"evt/I");
+  thrust_tree->Branch("lumi",&lumi,"lumi/I");
+  thrust_tree->Branch("vz",&vz,"vz/F");
+  */
+  
   TH1F * h_thrust = new TH1F("thrust_unscaled", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust_min", "", 50,0,1);
   TH1F * h_maj = new TH1F("thrust_maj", "", 50,0,1);
@@ -161,14 +169,9 @@ void thrust_HiForest(Int_t startfile = 15,
   Float_t pt[1000];    Int_t jt80;   Int_t jt80_pre;
   Float_t eta[1000];   Int_t jt40;   Int_t jt60_pre;
   Float_t phi[1000];   Int_t jt60;   Int_t jt40_pre;
-  Int_t subid[1000];
   
   Int_t nref;
   Float_t vz;
-  Int_t run;
-  Int_t lumi;
-  Int_t evt;
-  Int_t isGoodEvt;
   Int_t halo;
   Int_t noise;
   Double_t pThat_weight;
@@ -192,23 +195,8 @@ void thrust_HiForest(Int_t startfile = 15,
   Int_t jetCount = 0; //in order to sum up the number of jets per event
   Int_t eventCount = 0;//check to see how many of the events in each file are actually being used
 
-
-  //set up the tree to be filled
-  TTree * thrust_tree = new TTree("Thrust_Values","");
-  //thrust_tree->Branch("pthatweight",&pthatweight,"pthatweight/D");
-  //thrust_tree->Branch("hiBin",&hiBin,"hiBin/I");
-  thrust_tree->Branch("evt",&evt,"evt/I");
-  thrust_tree->Branch("run",&run,"run/I");
-  thrust_tree->Branch("lumi",&lumi,"lumi/I");
-  thrust_tree->Branch("vz",&vz,"vz/F");
-  thrust_tree->Branch("isGoodEvt",&isGoodEvt,"isGoodEvt/I");
-  thrust_tree->Branch("thrust",&thrust_max,"thrust/D");
-  thrust_tree->Branch("tmaj",&thrust_maj_max,"tmaj/D");
-  thrust_tree->Branch("tmin",&thrust_min_max,"tmin/D");
-
-  
   //define instream
-  string input_file = "Text_Files/pp_MC_HiForest.txt"; 
+  string input_file = "Text_Files/med5_jewel.txt"; 
   ifstream count(input_file.c_str(), ifstream::in);
   Int_t fileCount = 0;
   string * filename = new string[135];
@@ -224,25 +212,28 @@ void thrust_HiForest(Int_t startfile = 15,
   count.close();
   
   // For every file in file list, process trees
+  //for(int ifile = startfile; ifile < endfile; ifile++){
   for(int ifile = startfile; ifile < endfile; ifile++){
 
     //string s = "root://xrootd.cmsaf.mit.edu/";
-    //string str = s.append(filename[ifile]);
-    string str = filename[ifile];
+    string s = "root://eosuser.cern.ch://eos/user/j/jcoulter/Jewel/";
+    string str = s.append(filename[ifile]);
     file = TFile::Open(str.c_str());
     string w = Form("weights/weights_pp_%d.root", ifile+1); 
     if(weighted) weight_file = TFile::Open(w.c_str());
 
     if (debug) cout << "\n **** =========================== New File ================================= **** \n ";
+    cout << "File Address: " << str << endl;
     cout << "File Name: " << filename[ifile] << endl;
     cout << "File Number: " << endfile-ifile << "/" << endfile-startfile << endl;
     if(weighted) cout << "Weight File: " << w << endl;
 
     //define trees and file
-    t = (TTree*)file->Get(Form("ak%dPFJetAnalyzer/t", radius));
-    hiEvt = (TTree*)file->Get("hiEvtAnalyzer/HiTree");
-    //hlt = (TTree*)file->Get("hltanalysis/HltTree");
-    skim = (TTree*)file->Get("skimanalysis/HltTree");
+
+    t = (TTree*)file->Get("dijet/t");
+    nt = (TTree*)file->Get("dijet/nt");
+    hi = (TTree*)file->Get("ana/hi");
+
     if(weighted) weight = (TTree*)weight_file->Get("weights");
     
     //Set branches of the tree 
@@ -250,34 +241,22 @@ void thrust_HiForest(Int_t startfile = 15,
     t->SetBranchAddress("jteta", &eta);
     t->SetBranchAddress("jtphi", &phi);
     t->SetBranchAddress("nref", &nref);
-    t->SetBranchAddress("subid", &subid);
-    
-    if (weighted) t->SetBranchAddress("pthat", &pThat);
 
-    hiEvt->SetBranchAddress("vz", &vz);
-    hiEvt->SetBranchAddress("evt", &evt);    
-    hiEvt->SetBranchAddress("run", &run);    
-    hiEvt->SetBranchAddress("lumi", &lumi);    
+    hi->SetBranchAddress("vz", &vz);
+    
+    nt->SetBranchAddress("pthat", &pThat);
 
     //skim->SetBranchAddress("pHBHENoiseFilter", &noise);
-    skim->SetBranchAddress("pPAcollisionEventSelectionPA",&halo);
-  
-    //hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1",&jt80);
-    //hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1",&jt60);
-    //hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1",&jt40);
-    //hlt->SetBranchAddress("HLT_PAJet80_NoJetID_v1_Prescl",&jt80_pre);
-    //hlt->SetBranchAddress("HLT_PAJet60_NoJetID_v1_Prescl",&jt60_pre);
-    //hlt->SetBranchAddress("HLT_PAJet40_NoJetID_v1_Prescl",&jt40_pre);
+    //skim->SetBranchAddress("pPAcollisionEventSelectionPA",&halo);
 
     if(weighted) weight->SetBranchAddress("pthatweight", &pThat_weight);
 
-    t->AddFriend(hiEvt);
-    t->AddFriend(skim);
-    //t->AddFriend(hlt);
+    t->AddFriend(hi);
+    t->AddFriend(nt);
     if(weighted) t->AddFriend(weight);
     
     Long64_t nentries = t->GetEntries();
-    nentries = 10000;
+    //nentries = 10000;
  
     cout << "Events in File: " << nentries << endl;
     eventCount = 0;
@@ -289,37 +268,32 @@ void thrust_HiForest(Int_t startfile = 15,
       if(nentry%10000 == 0) cout << nentry << endl;
       
       t->GetEntry(nentry);
-      skim->GetEntry(nentry);
-      hiEvt->GetEntry(nentry);
+      hi->GetEntry(nentry);
+      nt->GetEntry(nentry);
       if(weighted) weight->GetEntry(nentry);
       
       jetCount = 0;
 
       //make selection cuts
       //if(TMath::Abs(vz) > 15 || halo == 0 || noise == 1) {continue;}
-      if(TMath::Abs(vz) > 15 || halo == 0) {
-	isGoodEvt = 0;
-	//continue;
-      }
-
-      isGoodEvt = 1;
+      //if(TMath::Abs(vz) > 15) {continue;}
       
       //fill pThat spectra plot
       if(weighted ) h_weight->Fill(pThat, pThat_weight); 
       
+      //if((TMath::Abs(vz) > 15)) {continue;}
+
       // get the pt vector for each event which passes you jet selections based on pT and eta
       vector <float> pt_v;
       vector <float> eta_v;
       vector <float> phi_v;
 
       for(int ij = 0; ij<nref; ++ij){
-	//cout << subid[ij] << endl; 
 
-	if((pt[ij] > ptCut) && (fabs(eta[ij]) < etaCut) && (subid[ij] == 0)) { 
+	if(pt[ij] > ptCut && fabs(eta[ij]) < etaCut)
 	  pt_v.push_back(pt[ij]);	
 	  eta_v.push_back(eta[ij]);	
-	  phi_v.push_back(phi[ij]);
-	}
+	  phi_v.push_back(phi[ij]);	
       }
 
       if (debug) cout<<"Total Number of Jets    : "<<nref<<endl;
@@ -447,8 +421,8 @@ void thrust_HiForest(Int_t startfile = 15,
 	  //h_TBadpT->Fill(pt_[max_nref], pThat_weight);
 	  h_TBad->Fill(thrust_max, pThat_weight);
 	  //eta and phi of bad jet axes
-	  h_etaBad->Fill(eta_v[max_nref], pThat_weight);
-	  h_phiBad->Fill(phi_v[max_nref], pThat_weight);
+	  //h_etaBad->Fill(eta_v[max_nref], pThat_weight);
+	  //h_phiBad->Fill(phi_v[max_nref], pThat_weight);
 	  h_weightBad->Fill(pThat_weight);
 	  h_pthatBad->Fill(pThat);
 	}
@@ -591,8 +565,6 @@ void thrust_HiForest(Int_t startfile = 15,
       px.clear();
       py.clear();
       pz.clear();
-
-      thrust_tree->Fill(); 
       
     }//end of event loop
     
@@ -644,9 +616,8 @@ void thrust_HiForest(Int_t startfile = 15,
   //h_60 = DivideByBinWidth(h_60, "thrust_60_new");   h_60->Scale(divEntries);
   //h_80 = DivideByBinWidth(h_80, "thrust_80_new");   h_80->Scale(divEntries);
   
+  TFile * save_File = new TFile(Form("test_pp_thrust_%d.root", jobNumber),"RECREATE");
   save_File->cd();
-
-  thrust_tree->Write();
 
   h_T->Print("base");
   h_Tmaj->Print("base");
@@ -682,44 +653,42 @@ void thrust_HiForest(Int_t startfile = 15,
   cout<<endl<<endl<<endl<<endl<<"GOING TO WRITE BAD OUTPUT FILE"<<endl<<endl<<endl<<endl;
   
   //if(debug) {
-  /*  
-  TFile * bad_File = new TFile(Form("bad_file_%d.root", jobNumber),"RECREATE");
-  
-  bad_File->cd();
-  
-  h_TBad->Print("base");
-  h_TmajBad->Print("base");
-  h_TminBad->Print("base");
-  h_TBadpT->Print("base");
-  h_TmajBadpT->Print("base");
-  h_TminBadpT->Print("base");
-  h_etaBad->Print("base");
-  h_phiBad->Print("base");
-  h_nrefBad->Print("base");
-  h_jetCountBad->Print("base");
-  h_pthatBad->Print("base");
-  h_weightBad->Print("base");
-  h_fileNum->Print("base"); 
     
-  h_TBad->Write();
-  h_TmajBad->Write();
-  h_TminBad->Write();
-  h_TBadpT->Write();
-  h_TmajBadpT->Write();
-  h_TminBadpT->Write();
-  h_etaBad->Write();
-  h_phiBad->Write();
-  h_nrefBad->Write();
-  h_jetCountBad->Write();
-  h_pthatBad->Write();
-  h_weightBad->Write();
-  h_fileNum->Write();
+    TFile * bad_File = new TFile(Form("bad_file_%d.root", jobNumber),"RECREATE");
+
+    bad_File->cd();
     
-  bad_File->Write();
-  
-  bad_File->Close();
-  */
-  // }
+    h_TBad->Print("base");
+    h_TmajBad->Print("base");
+    h_TminBad->Print("base");
+    h_TBadpT->Print("base");
+    h_TmajBadpT->Print("base");
+    h_TminBadpT->Print("base");
+    h_etaBad->Print("base");
+    h_phiBad->Print("base");
+    h_nrefBad->Print("base");
+    h_jetCountBad->Print("base");
+    h_pthatBad->Print("base");
+    h_weightBad->Print("base");
+    h_fileNum->Print("base"); 
+    
+    h_TBad->Write();
+    h_TmajBad->Write();
+    h_TminBad->Write();
+    h_TBadpT->Write();
+    h_TmajBadpT->Write();
+    h_TminBadpT->Write();
+    h_etaBad->Write();
+    h_phiBad->Write();
+    h_nrefBad->Write();
+    h_jetCountBad->Write();
+    h_pthatBad->Write();
+    h_weightBad->Write();
+    h_fileNum->Write();
+    
+    bad_File->Write();
+    bad_File->Close();
+    // }
   
   timer.Stop();
   cout<<"Macro finished: "<<endl;
