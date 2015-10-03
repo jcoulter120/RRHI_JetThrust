@@ -83,7 +83,7 @@ TH1F* DivideByBinWidth(TH1F * hist, const char * name){
   for (int i=1;i<=hist->GetNbinsX();++i){
     Float_t bin = hist->GetBinWidth(i);
     Float_t val = hist->GetBinContent(i);
-    Float_t valErr = h_return->GetBinError(i);
+    Float_t valErr = hist->GetBinError(i);
     val = val/bin;
     valErr= valErr/bin;
     h_return->SetBinError(i,valErr);
@@ -103,12 +103,13 @@ TVector3 Norm(TVector3 v){
 //plot thrust
 //void thrust_HiForest(Int_t startfile, Int_t endfile, Int_t jobNumber){
 
-void thrust_Jewel(Int_t startfile = 0,
-		     Int_t endfile = 11,
-		     Int_t jobNumber = 9415,
-		     int radius = 3,
-		     float ptCut = 30.0,
-		     float etaCut = 2.0){
+void thrust_Pythia(Int_t startfile = 0,
+		   Int_t endfile = 12,
+		   Int_t jobNumber = 60,
+		   int radius = 3,
+		   float ptCutLead = 60.0,
+		   float ptCut = 30.0,
+		   float etaCut = 2.0){
 
   TH1::SetDefaultSumw2();
 
@@ -119,8 +120,8 @@ void thrust_Jewel(Int_t startfile = 0,
   
   //define trees and file
   TFile * file; 
-  TFile * save_File = new TFile(Form("jewel_thrust_%d.root", jobNumber),"RECREATE");
-  TFile * bad_File = new TFile(Form("bad_file_%d.root", jobNumber),"RECREATE");
+  TFile * save_File = new TFile(Form("pythia_thrust_%d.root", jobNumber),"RECREATE");
+  TFile * bad_File = new TFile(Form("pythia_bad_file_%d.root", jobNumber),"RECREATE");
 
   TTree * t;
   TTree * hi;
@@ -129,8 +130,8 @@ void thrust_Jewel(Int_t startfile = 0,
   TH1F * h_thrust = new TH1F("thrust_unscaled", "", 50,0,1);
   TH1F * h_min = new TH1F("thrust_min", "", 50,0,1);
   TH1F * h_maj = new TH1F("thrust_maj", "", 50,0,1);
-  TH1F * h_pT = new TH1F("pT", "", 100, 0, 120);
-  TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 120);
+  TH1F * h_pT = new TH1F("pT", "", 100, 0, 500);
+  TH1F * h_pTcut = new TH1F("pTcut", "", 100, 0, 500);
   //TH1F * h_40 = new TH1F("thrust_40", "", 50,0,1);
   //TH1F * h_60 = new TH1F("thrust_60", "", 50,0,1);
   //TH1F * h_80 = new TH1F("thrust_80", "", 50,0,1);
@@ -138,7 +139,8 @@ void thrust_Jewel(Int_t startfile = 0,
   TH1F * h_jetCount = new TH1F("jetCount", "", 12, 0, 12);
   TH1F * h_eta = new TH1F("eta", "", 60, -2, 2);
   TH1F * h_phi = new TH1F("phi", "", 60, -3.15, 3.15);
-  TH1F * h_weight = new TH1F("weighting", "", 500, 0, 500);
+  TH1F * h_weight = new TH1F("weighting", "", 1200, 0, 1200);
+  TH1F * h_unweight = new TH1F("unweighted", "", 1200, 0, 1200);
   
   TH1F * h_TBad = new TH1F("thrust_bad", "", 50,0,1);
   TH1F * h_TminBad = new TH1F("thrust_min_bad", "", 50,0,1);
@@ -150,7 +152,7 @@ void thrust_Jewel(Int_t startfile = 0,
   TH1F * h_phiBad = new TH1F("phiBad", "", 60, -3.15, 3.15);
   TH1F * h_nrefBad = new TH1F("nrefBad", "", 12, 0, 12);
   TH1F * h_jetCountBad = new TH1F("jetCountBad", "", 12, 0, 12);
-  TH1F * h_weightBad = new TH1F("weightingBad", "", 500, 0, 500);
+  TH1F * h_weightBad = new TH1F("weightingBad", "", 700, 0, 700);
   TH1F * h_pthatBad = new TH1F("pthatBad", "", 500, 0, 500);
   TH1F * h_fileNum = new TH1F("fileNum", "", 45, 0, 45);
 
@@ -162,8 +164,9 @@ void thrust_Jewel(Int_t startfile = 0,
   Int_t nref;
   Float_t vz;
   Int_t lumi;
-  Int_t evt;
-  Int_t isGoodEvt;
+  Int_t evt = 0; //this is used as the event number out of all the events handled
+  Int_t isBadThrust = 0;
+  Int_t isGoodEvt = 0; 
   Int_t halo;
   Int_t noise;
   Float_t pThat; 
@@ -185,32 +188,38 @@ void thrust_Jewel(Int_t startfile = 0,
   Int_t max_nref;
   Int_t jetCount = 0; //in order to sum up the number of jets per event
   Int_t eventCount = 0;//check to see how many of the events in each file are actually being used
-  Double_t weightQ;
-  Double_t weightS;
+  Int_t badCount = 0; 
+  //Double_t weightQ;
+  Double_t weightSTAT;
 
   //PTHAT WEIGHTING SETUP======================================================
   //The sums of the cross sections for each bin, as obtained from Jewel output log files, are divided by the number of events in each bin to get the weight for each event
   double pthatBinning[] = {15,30,50,80,120,170,220,280,330,400,460,540};
   //                0           1           2      3       4           5            6        7        8        9          10
-  double xsSUM[] = {4878812.4,4218696.2,4659866.4,4049616.0,2934218.1,1695768.4,1302251.3,718081.6,578537.1,291444.26,168207.79};
-  double xsQCD[] = {286240.0,444780.0,  494830.0,514200.0,554520.0,482280.0,    309090.0,304490.0,173850.0,173850.0,114700.0};
+  //double xsSUM[] = {4878812.4,4218696.2,4659866.4,4049616.0,2934218.1,1695768.4,1302251.3,718081.6,578537.1,291444.26,168207.79};
+  //for 120k
+  double xsSTAT[] = {0.193,0,0.0009228,8.835e-05,9.752e-06,1.182e-06,2.314e-07,3.795e-08,1.22e-08,2.202e-09,6.641e-10,1.483e-10};
+  //for 1.2M
 
+  /*
   //set up the tree to be filled
   TTree * thrust_tree = new TTree("Thrust_Values","");
   thrust_tree->Branch("pthatweight",&weightQ,"pthatweight/D");
   //thrust_tree->Branch("hiBin",&hiBin,"hiBin/I");
-  //thrust_tree->Branch("evt",&evt,"evt/I");
+  thrust_tree->Branch("evt",&evt,"evt/I");
   //thrust_tree->Branch("run",&run,"run/I");
   //thrust_tree->Branch("lumi",&lumi,"lumi/I");
   thrust_tree->Branch("vz",&vz,"vz/F");
   //thrust_tree->Branch("isGoodEvt",&isGoodEvt,"isGoodEvt/I");
+  thrust_tree->Branch("isBadThrust",&isBadThrust,"isBadThrust/I"); // 1 if thrust is bad, otherwise 0
   thrust_tree->Branch("thrust",&thrust_max,"thrust/D");
   thrust_tree->Branch("tmaj",&thrust_maj_max,"tmaj/D");
   thrust_tree->Branch("tmin",&thrust_min_max,"tmin/D");
-  
+  */
+
   //define instream
   //string input_file = "Text_Files/med5_jewel.txt";
-  string input_file = "Text_Files/med5_jewel.txt";
+  string input_file = "Text_Files/pythia_files_120k.txt";
   ifstream count(input_file.c_str(), ifstream::in);
   Int_t fileCount = 0;
   string * filename = new string[135];
@@ -262,12 +271,12 @@ void thrust_Jewel(Int_t startfile = 0,
     eventCount = 0;
 
     //Calculate weights for this file ==================
-    weightQ = xsQCD[ifile]/nentries;
-    weightS = xsSUM[ifile]/nentries;
+    //weightQ = xsQCD[ifile]/nentries;
+    weightSTAT = xsSTAT[ifile]/nentries;
     
     //event loop
     for(Long64_t nentry = 0; nentry<nentries; ++nentry){
-      
+
       if(nentry%10000 == 0) cout << nentry << endl;
       
       t->GetEntry(nentry);
@@ -275,10 +284,7 @@ void thrust_Jewel(Int_t startfile = 0,
       nt->GetEntry(nentry);
       
       jetCount = 0;
-
-      //make selection cuts
-      //if(TMath::Abs(vz) > 15 || halo == 0 || noise == 1) {continue;}
-      //if(TMath::Abs(vz) > 15) {continue;}
+      isGoodEvt = 0; 
 
       // get the pt vector for each event which passes you jet selections based on pT and eta
       vector <float> pt_v;
@@ -286,11 +292,14 @@ void thrust_Jewel(Int_t startfile = 0,
       vector <float> phi_v;
 
       for(int ij = 0; ij<nref; ++ij){
-
-	if(pt[ij] > ptCut && fabs(eta[ij]) < etaCut)
+	if(pt[ij] > ptCutLead && fabs(eta[ij]) < etaCut){
+	  isGoodEvt = 1; 
+	}
+	if(pt[ij] > ptCut && fabs(eta[ij]) < etaCut){
 	  pt_v.push_back(pt[ij]);	
 	  eta_v.push_back(eta[ij]);	
-	  phi_v.push_back(phi[ij]);	
+	  phi_v.push_back(phi[ij]);
+	}
       }
 
       if (debug) cout<<"Total Number of Jets    : "<<nref<<endl;
@@ -302,17 +311,20 @@ void thrust_Jewel(Int_t startfile = 0,
 	if (debug) cout<<"This event had only 1 Jet"<<endl;
 	continue;	
       }
+      if(!isGoodEvt){continue;}
 
       if(debug) cout<< " \n ******* New Event ******** " << endl;
       if(debug) cout<< " ******* " << nentry << " ******** " << endl;
       
       //reset maximum values
       eventCount++;
+      evt++;
       thrust_max = 0;
 
       vector <double> px;
       vector <double> py;
       vector <double> pz;
+      
       
       for(Long64_t naxis = 0; naxis < NJets_Sel; ++naxis){
 	float axis_jet_pt = pt_v[naxis];
@@ -332,10 +344,9 @@ void thrust_Jewel(Int_t startfile = 0,
 	float axis_jet_eta = eta_v[naxis];
 	float axis_jet_phi = phi_v[naxis];
 	
-	h_pT->Fill(axis_jet_pt);
+	h_pT->Fill(axis_jet_pt,weightSTAT);
 	
 	if(debug) cout<< " \n --------- New Test Axis (Thrust)--------- " << endl; 
-	
 	//reset values for this particular event
 	thrust_temp = 0;  // maj_temp = 0;   min_temp = 0;
 	
@@ -376,9 +387,9 @@ void thrust_Jewel(Int_t startfile = 0,
 	  if(debug) cout<<"mag sum = " << mag << endl;
 
 	  //fill jet variables
-	  h_eta->Fill(eta_v[njet], weightQ);
-	  h_phi->Fill(phi_v[njet], weightQ);
-	  h_TBadpT->Fill(pt_v[njet], weightQ);
+	  h_eta->Fill(eta_v[njet], weightSTAT);
+	  h_phi->Fill(phi_v[njet], weightSTAT);
+	  h_TBadpT->Fill(pt_v[njet], weightSTAT);
 	  
 	}//end jet loop
 	
@@ -405,13 +416,15 @@ void thrust_Jewel(Int_t startfile = 0,
       if(thrust_max < 0.5) {
 
 	cout << "Thrust: " << thrust_max << " Event Number: " << nentry << endl; 
-
-	//h_TBadpT->Fill(pt_[max_nref], weightQ);
-	h_TBad->Fill(thrust_max, weightQ);
+	isBadThrust = 1;
+	badCount++;
+	
+	//h_TBadpT->Fill(pt_[max_nref], weightSTAT);
+	h_TBad->Fill(thrust_max, weightSTAT);
 	//eta and phi of bad jet axes
-	//h_etaBad->Fill(eta_v[max_nref], weightQ);
-	//h_phiBad->Fill(phi_v[max_nref], weightQ);
-	h_weightBad->Fill(weightQ);
+	//h_etaBad->Fill(eta_v[max_nref], weightSTAT);
+	//h_phiBad->Fill(phi_v[max_nref], weightSTAT);
+	h_weightBad->Fill(weightSTAT);
 	h_pthatBad->Fill(pThat);
 	h_nrefBad->Fill(nref);
 	h_jetCountBad->Fill(NJets_Sel);
@@ -513,12 +526,13 @@ void thrust_Jewel(Int_t startfile = 0,
       }//end of major/minor axis loop
       
       //fill all the maximum values before finishing
-      h_thrust->Fill(thrust_max, weightQ);
-      h_min->Fill(thrust_min_max, weightQ);
-      h_maj->Fill(thrust_maj_max, weightQ);
+      h_thrust->Fill(thrust_max);
+      h_min->Fill(thrust_min_max);
+      h_maj->Fill(thrust_maj_max);
       h_nref->Fill(nref);
       h_jetCount->Fill(NJets_Sel);
-      h_weight->Fill(weightQ);
+      h_weight->Fill(pThat,weightSTAT);
+      h_unweight->Fill(pThat);
 	
       if(debug) {
 	if (thrust_max < 0.5)     {  cout << "FLAG_thrust1: " << thrust_max <<  " , " << jetCount << endl; }
@@ -534,7 +548,7 @@ void thrust_Jewel(Int_t startfile = 0,
       py.clear();
       pz.clear();
 
-      thrust_tree->Fill(); 
+      //thrust_tree->Fill(); 
       
     }//end of event loop
     
@@ -550,9 +564,9 @@ void thrust_Jewel(Int_t startfile = 0,
   
   // integral = h_thrust->Integral();
   // h_thrust->Scale(1/integral);
-  //h_thrust->Scale(1./h_thrust->Integral());
-  //h_maj->Scale(1./h_maj->Integral());
-  //h_min->Scale(1./h_min->Integral());
+  h_thrust->Scale(1./h_thrust->Integral());
+  h_maj->Scale(1./h_maj->Integral());
+  h_min->Scale(1./h_min->Integral());
 
   // integral = h_maj->Integral(); 
   // h_maj->Scale(1/integral);
@@ -587,7 +601,7 @@ void thrust_Jewel(Int_t startfile = 0,
 
   save_File->cd();
 
-  thrust_tree->Write();
+  //thrust_tree->Write();
 
   h_T->Print("base");
   h_Tmaj->Print("base");
@@ -603,13 +617,17 @@ void thrust_Jewel(Int_t startfile = 0,
   h_T->Write();
   h_Tmaj->Write();
   h_Tmin->Write();
+  h_thrust->Write();
+  h_maj->Write();
+  h_min->Write();
   h_pT->Write();
   h_pTcut->Write();
   h_nref->Write();
   h_jetCount->Write();
   h_eta->Write();
   h_phi->Write();
-  h_weight->Write(); 
+  h_weight->Write();
+  h_unweight->Write();
   
   save_File->Write();
   save_File->Close();
@@ -653,9 +671,10 @@ void thrust_Jewel(Int_t startfile = 0,
     // }
 
   timer.Stop();
+  cout<<"Bad Percent: "<<badCount<<"/"<<evt<<endl;
   cout<<"Macro finished: "<<endl;
   
   cout<<"CPU time (min)  = "<<(Float_t)timer.CpuTime()/60<<endl;
   cout<<"Real time (min) = "<<(Float_t)timer.RealTime()/60<<endl;
-  
+    
 }//end of plot thrust
