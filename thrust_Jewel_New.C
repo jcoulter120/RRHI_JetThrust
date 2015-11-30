@@ -213,10 +213,10 @@ void thrust_Jewel_New(Int_t startfile = 0,
   //The sums of the cross sections for each bin, as obtained from Jewel output log files, are divided by the number of events in each bin to get the weight for each event
   double pthatBinning[] = {15,30,50,80,120,170,220,280,330,400,460,540};
   //                0           1           2      3       4           5            6        7        8        9          10
-  double xsSTAT[] = {4878812.4,4218696.2,4659866.4,4049616.0,2934218.1,1695768.4,1302251.3,718081.6,578537.1,291444.26,168207.79};
+  //double xsSTAT[] = {4878812.4,4218696.2,4659866.4,4049616.0,2934218.1,1695768.4,1302251.3,718081.6,578537.1,291444.26,168207.79};
   //for 120k
   //double xsSTAT[] = {0.193,0,0.0009228,8.835e-05,9.752e-06,1.182e-06,2.314e-07,3.795e-08,1.22e-08,2.202e-09,6.641e-10,1.483e-10};
-  //double xsSTAT[] = {286240.0,444780.0, 494830.0,514200.0,554520.0,482280.0,309090.0,304490.0,173850.0,173850.0,114700.0};
+  double xsSTAT[] = {286240.0,444780.0, 494830.0,514200.0,554520.0,482280.0,309090.0,304490.0,173850.0,173850.0,114700.0};
   //for 1.2M
   //double xsSTAT[] = {4878812.4,4218696.2,4659866.4,4049616.0,2934218.1,1695768.4,1302251.3,0,0,291444.26,168207.79,0};
 
@@ -298,7 +298,7 @@ void thrust_Jewel_New(Int_t startfile = 0,
     //cout << whichBin(pThat) << endl;
     //weightSTAT = xsSTAT[whichBin(pThat)]/nentries;
     weightSTAT = xsSTAT[ifile]/nentries;
-    cout << "weight: " << weightSTAT << " is " << xsSTAT[whichBin(pThat)] << "/" << nentries << " PTHAT: " << pThat<<  endl;
+    //cout << "weight: " << weightSTAT << " is " << xsSTAT[whichBin(pThat)] << "/" << nentries << " PTHAT: " << pThat<<  endl;
     
     //event loop
     for(Long64_t nentry = 0; nentry<nentries; ++nentry){
