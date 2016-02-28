@@ -139,10 +139,14 @@ void jetPull_Pythia(Int_t startfile = 0,
   TH1F * h_jetCount = new TH1F("jetCount", "", 12, 0, 12);
   TH1F * h_eta = new TH1F("eta", "", 60, -2, 2);
   TH1F * h_phi = new TH1F("phi", "", 60, -3.15, 3.15);
-  TH1F * h_weight = new TH1F("weighting", "", 1200, 0, 1200);
+  TH1F * h_weight = new TH1F("weighted", "", 1200, 0, 1200);
   TH1F * h_unweight = new TH1F("unweighted", "", 1200, 0, 1200);
-    TH2F * h_jetPull_2d = new TH2F("jetPull_2d","Jet pT vs Eta for pT>20",30,-3,+3,60,-3.5,3.5);
-
+  TH1F * h_etaParticle = new TH1F("etaParticle", "", 60, -3, 3);
+  TH1F * h_yParticle = new TH1F("yParticle", "", 60, -3, 3);
+  TH2F * h_jetPull_2d = new TH2F("jetPull_2d","Jet pT vs Eta for pT>20",30,-3,+3,60,-3.5,3.5);
+  TH3F * h_jetPull_3d = new TH3F("jetPull_3d","phi vs y vs pT" ,30,-3,+3,60,-3.5,3.5,60,0.01,500);
+  //TH1F * pTCutoffs = new TH1F("pTcutoffs", "Jet Pull Angle -- with pThat Cutoffs", 60, 0.01, 500);
+  //TH1F * pullAngle = new TH1F("pullAngle", "Jet Pull Angle vs pT", 60, -3.5, 3.5); 
 
   //DEFINE TREE VARIABLES +++++++++++++++++++++++++++++++++++
   Float_t pt[1000];  
@@ -152,6 +156,7 @@ void jetPull_Pythia(Int_t startfile = 0,
   Float_t genpt[1000];
   Float_t genphi[1000];
   Float_t geny[1000];
+  Float_t geneta[1000];
 
   TVector2 jetPull;
   
@@ -187,7 +192,8 @@ void jetPull_Pythia(Int_t startfile = 0,
   Int_t max_nref;
   Int_t jetCount = 0;
   Int_t eventCount = 0;
-  Float_t jetPullMag  = 0; 
+  Float_t jetPullMag  = 0;
+  Float_t pullAngle = 0; 
 
   //LOAD IN FILE NAMES +++++++++++++++++++++++++++++++++++
   string input_file = "Text_Files/pp_MC_HiForest.txt";
@@ -205,11 +211,7 @@ void jetPull_Pythia(Int_t startfile = 0,
 
   //BEGIN FILE LOOP ======================================================
   for(int ifile = startfile; ifile < endfile; ifile++){
-
-    /*string str = filename[ifile];
-      file = TFile::Open(str.c_str());*/
-
-    //string s = "root://xrootd.cmsaf.mit.edu/";
+    
     string s = "";
     string str = s.append(filename[ifile]);
     file = TFile::Open(str.c_str());
@@ -239,6 +241,7 @@ void jetPull_Pythia(Int_t startfile = 0,
     t->SetBranchAddress("genpt", &genpt);
     t->SetBranchAddress("geny", &geny);
     t->SetBranchAddress("genphi", &genphi);
+    t->SetBranchAddress("geneta", &geneta);
 
     hiEvt->SetBranchAddress("vz", &vz);
     hiEvt->SetBranchAddress("evt", &evt);    
@@ -256,7 +259,7 @@ void jetPull_Pythia(Int_t startfile = 0,
     t->AddFriend(weight);
     
     Long64_t nentries = t->GetEntries();
-    nentries = 10000;
+    nentries = 1000;
     cout << "Events in File: " << nentries << endl;
     eventCount = 0;
     
@@ -271,11 +274,11 @@ void jetPull_Pythia(Int_t startfile = 0,
       weight->GetEntry(nentry);
       
       jetCount = 0;
-      //SELECTION CUTS ???????? WHAT IS GOING ON HERE, LOOK INTO THIS?
       if(TMath::Abs(vz) > 15 || halo == 0) {
-	isGoodEvt = 0;
+	//isGoodEvt = 0;
+	continue;
       }
-      isGoodEvt = 1;
+      //isGoodEvt = 1;
       
       // get the pt vector for each event which passes you jet selections based on pT and eta
       vector <float> pt_v;
@@ -293,8 +296,8 @@ void jetPull_Pythia(Int_t startfile = 0,
 	}
       }
 
-      if (debug) cout<<"Total Number of Jets    : "<<nref<<endl;
-      if (debug) cout<<"Number of Selected Jets : "<<pt_v.size()<<endl;
+      if(debug) cout <<"Total Number of Jets    : "<<nref<<endl;
+      if(debug) cout <<"Number of Selected Jets : "<<pt_v.size()<<endl;
 
       int NJets_Sel = pt_v.size();
 
@@ -325,42 +328,55 @@ void jetPull_Pythia(Int_t startfile = 0,
 	pz.push_back((double)axis_jet_pt * TMath::SinH(axis_jet_eta));
       }
 
-      //PART 1 ====================================================
+      //EVENT LOOP  ====================================================
       for(Long64_t njet = 0; njet < NJets_Sel; ++njet){	
 	
-	r.Set(0,0);
-	jetPull.Set(0,0);
-	cout << "NEW JET: "<<  ngen << " *******************************" << endl;
+	r.Set(0.0,0.0);
+	jetPull.Set(0.0,0.0);
+	if(debug) cout << "NEW JET: "<<  ngen << " *******************************" << endl;
 
 	//PARTICLE LOOP STARTS HERE ===================================
 	for(Long64_t npart = 0; npart < ngen; ++npart){
-	  cout << "NEW PART: " << npart << " ================" << endl;
-	  cout << "y: " << geny[npart] << endl;
-	  cout << "azimuthal: " << genphi[npart] << endl;
+
+	  //Delta R^2 cut
+	  /*
+	  if((Double_t)(TMath::Power(genphi[npart],2) + TMath::Power(geneta[npart],2)) < 0.2){
+	    continue;
+	  }
+	  */
+	  if(debug) cout << "NEW PART: " << npart << " ================" << endl;
+	  if(debug) cout << "y: " << geny[npart] << endl;
+	  if(debug) cout << "azimuthal: " << genphi[npart] << endl;
+	  
 	  TVector2 partAxis = TVector2(geny[npart], genphi[npart]);
 	  TVector2 jetAxis = TVector2(y[njet], phi[njet]);
 	  TVector2 newJetPull; 
 	  r.Set((partAxis.X() - jetAxis.X()),(partAxis.Y() - jetAxis.Y()));
-	  r.Print();
-	  cout << genpt[ngen] << endl;
+	  if(debug) r.Print();
+	  if(debug) cout << genpt[ngen] << endl;
 
 	  jetPullMag = (r.X()*r.X() + r.Y()*r.Y())* genpt[ngen]/pt[njet];
 	  newJetPull = jetPullMag*r;
 	  jetPull.Set(jetPull.X() + newJetPull.X(), jetPull.Y() + newJetPull.Y());
-	  cout << "JET PULL MAG: " << jetPullMag << endl;
+	  if(debug) cout << "JET PULL MAG: " << jetPullMag << endl;
+
+	  h_yParticle->Fill(geny[npart], pThat_weight);
+	  h_etaParticle->Fill(geneta[npart], pThat_weight);
 	  
 	}//PARTICLE LOOP ENDS HERE ===========
+
 	if(jetPullMag != 0){
-	  h_jetPull->Fill(jetPullMag);
-	  h_jetPull_2d->Fill(jetPull.X(), jetPull.Y());
+	  h_jetPull->Fill(jetPullMag, pThat_weight);
+	  h_jetPull_2d->Fill(jetPull.X(), jetPull.Y(), pThat_weight);
+	  h_jetPull_3d->Fill(jetPull.X(), jetPull.Y(), pt[njet], pThat_weight);
 	}
       }//end jet loop =======================
-
+      
       //fill all the maximum values before finishing
       h_thrust->Fill(thrust_max);
       h_min->Fill(thrust_min_max);
       h_maj->Fill(thrust_maj_max);
-
+      
       //h_jetPull->Fill(jetPull, pThat_weight);
       h_thrust->Fill(thrust_max, pThat_weight);
       h_min->Fill(thrust_min_max, pThat_weight);
@@ -368,18 +384,17 @@ void jetPull_Pythia(Int_t startfile = 0,
       
       h_nref->Fill(nref);
       h_jetCount->Fill(NJets_Sel);
-      //h_weight->Fill(pThat,weightSTAT);
-      h_unweight->Fill(pThat);
+      h_weight->Fill(pThat,pThat_weight);
+      h_unweight->Fill(pThat);     
       
-
       pt_v.clear();
       eta_v.clear();
       phi_v.clear();
-
+      
       px.clear();
       py.clear();
       pz.clear();
-
+      
       //thrust_tree->Fill(); 
       
     }//end of event loop
@@ -391,13 +406,13 @@ void jetPull_Pythia(Int_t startfile = 0,
     cout << "File Finished" << endl; 
     
   }//end file loop
-
+  
   //SCALE HISTOGRAMS +++++++++++++++++++++++++++++++++++
   h_jetPull->Scale(1./h_jetPull->Integral());
   h_thrust->Scale(1./h_thrust->Integral());
   h_maj->Scale(1./h_maj->Integral());
   h_min->Scale(1./h_min->Integral());
- 
+  
   //CREATE PLOTS VS. dN/dT +++++++++++++++++++++++
   TH1F * h_jetPullScaled = DivideByBinWidth(h_jetPull, "jetPull_scaled");
   TH1F * h_T = DivideByBinWidth(h_thrust, "thrust_scaled");
@@ -405,7 +420,7 @@ void jetPull_Pythia(Int_t startfile = 0,
   TH1F * h_Tmin = DivideByBinWidth(h_min, "thrust_min_scaled");
   
   save_File->cd();
-
+  /* 
   h_jetPullScaled->Print("base");
   h_jetPull->Print("base"); 
   h_T->Print("base");
@@ -417,8 +432,10 @@ void jetPull_Pythia(Int_t startfile = 0,
   h_jetCount->Print("base");
   h_eta->Print("base");
   h_phi->Print("base");
-  h_weight->Print("base"); 
-
+  h_weight->Print("base");
+  h_yParticle->Print("base");
+  h_etaParticle->Print("base");
+  */
   h_jetPullScaled->Write();
   h_jetPull->Write();
   h_T->Write();
@@ -435,9 +452,14 @@ void jetPull_Pythia(Int_t startfile = 0,
   h_phi->Write();
   h_weight->Write();
   h_unweight->Write();
+  h_yParticle->Write();
+  h_etaParticle->Write();
+  h_jetPull_2d->Write();
+  h_jetPull_3d->Write();
   
   save_File->Write();
   save_File->Close();
+  gROOT->GetListOfFiles()->Remove(save_File);
 
   timer.Stop();
   cout<<"Macro finished: "<<endl;
